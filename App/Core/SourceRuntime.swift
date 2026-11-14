@@ -167,7 +167,8 @@ final class SourceRuntime {
         host.setObject(unsafeBitCast(cookieRemove, to: AnyObject.self), forKeyedSubscript: "cookieRemove" as NSString)
 
         let stateGet: @convention(block) (String) -> Any = { [weak self] key in
-            self?.state[key] ?? NSNull()
+            guard let self = self, let value = self.state[key] else { return NSNull() }
+            return value
         }
         host.setObject(unsafeBitCast(stateGet, to: AnyObject.self), forKeyedSubscript: "stateGet" as NSString)
 

@@ -9,16 +9,18 @@ Last updated: 2026-11-14 (session 1, after step 2)
 
 - Step 0, 1 and 1b: done.
 - Step 2 (PC test harness): **done and verified by running it** on 2026-11-14, see "Harness results".
-- Step 3: minimal app written (App/, project.yml, CI workflow). **Not compiled, not run.**
+- Step 3: minimal app **compiles on GitHub Actions** (Xcode 16.4) and the IPA is published as a release.
+  IPA checked on the PC: arm64, minimum iOS 15.0, bundle id app.kumo.reader, ad-hoc signed. **Never run on a device yet.**
 
 ## Next step
 
-1. Step 3 (minimal app) code is written but **has never been compiled** (no Mac). First CI build will likely show
-   compile errors; fix them from the GitHub Actions log until the IPA builds.
-2. Rev: create GitHub account, run `gh auth login` (see BUILDING.md). Then push, build, install IPA via TrollStore.
-3. Rev tests on the iPad: add netsky repo, install MangaKatana, search, read a chapter. Screenshot the Log tab on problems.
-4. Then step 4 (Cloudflare / verification web view, ComixTo), step 5 (native MangaDex), step 6 (full UI; needs the
-   design direction choice first).
+1. **Rev tests build on the iPad** (first device test ever): install Kumo.ipa from
+   https://github.com/ventspilsrev/kumo/releases via TrollStore, add the netsky 0.8 repo, install MangaKatana,
+   search, open a manga, read a chapter. On any problem: screenshot the error and the Log tab.
+   Things to watch: time shown in the log line "loaded ... KB in ... ms" (JavaScriptCore speed on the A8X),
+   whether covers and pages appear, right-to-left swipe direction, memory warnings in the log.
+2. Then step 4 (verification web view + persistent cookies, ComixTo), step 5 (native MangaDex),
+   step 6 (full UI in design A "Sumi", SQLite library with migrations).
 
 ## Rev's answers (2026-11-14)
 
