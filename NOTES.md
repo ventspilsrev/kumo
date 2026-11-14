@@ -109,6 +109,45 @@ Cleanup and speed:
   Known leftovers: `.onChange(of:)` single-parameter form (deprecated on iOS 17, correct for iOS 15);
   `RepoSource.tags` badges are decoded but not shown yet.
 
+## What build 0.6.0 (release "Build 10") adds (compiled, device test pending)
+
+Rev asked for both remaining big steps of the brief: native MangaDex (step 5) and ComixTo verification (step 4).
+
+### Built-in MangaDex (`runtime/mangadex.js`)
+- Written for Kumo against the official API (not the 0.7 extension). Deliberately shaped like a 0.8 source, so it
+  runs in the same sandboxed runtime, reuses every screen, and **can be tested on the PC**:
+  `node harness/run.js --file runtime/mangadex.js MangaDex berserk` -> 9 of 9 pass (verified 2026-11-14).
+- **User-Agent finding (verified):** `api.mangadex.org` answers browser-style user agents with a 302 to
+  `mangadex.org/edge/challenge`. An honest app identifier works. The source sends `Kumo/0.5 (iPad manga reader)`.
+  Do not change it to a browser UA.
+- Home rows (popular new, latest, most followed, top rated, recently added), search, full include/exclude tags
+  (AND for included, OR for excluded), audience, status, original language, sort, content rating.
+  Default ratings: safe, suggestive, erotica. "Adult (18+)" only when picked in filters.
+- Chapters: English only, externally hosted and empty chapters skipped, one entry per chapter number.
+  Many licensed titles have NO readable chapters on MangaDex; the app says so in plain words.
+- Pages via `/at-home/server/<chapter>` (full quality). 4 requests per second.
+- `SourceStore.builtIn`: always first in the source list, cannot be removed, not stored in sources.json.
+
+### Site verification (`App/UI/VerificationScreen.swift`)
+- For sources with intent bit 16: a shield button on Browse, and "Verify on website" on every error box.
+- Opens the page the source names via `getCloudflareBypassRequestAsync` (fallback: its home page) in a WKWebView
+  with the persistent data store. On Done, ALL cookies of the site's base domain are copied into that source's
+  URLSession cookie jar, remembered answers are dropped, and the failed action is retried.
+- User-Agent decision (brief section 5): sources get the web view's real UA from `getDefaultUserAgent()`, so both
+  sides match without overriding. If a source sends another UA, the web view adopts it (`customUserAgent`).
+- Cookies are saved per source in `Sources/<id>/cookies.json` inside the app's private folder (not Keychain:
+  entitlements untested under TrollStore) and restored at launch.
+- **Untested**: no device run yet. comix.to's own pass (`waf_pass`) lasts about 5 minutes per the extension, so
+  expect repeated verification there.
+
+### Image un-scrambling for ComixTo
+- `App.createPBImage` / `App.createPBCanvas` are implemented natively (Core Graphics) in `SourceRuntime`.
+  WebP encoding is reported as unavailable (iOS 15 cannot write it); the extension then asks for PNG and gets
+  JPEG bytes (smaller and faster; decoders sniff the content).
+- **Untested anywhere**: Node has no canvas, so the harness cannot exercise it, and ComixTo chapter pages need a
+  passed verification first. Treat as "should work".
+- ComixTo's settings menu (DUI forms, e.g. its auto-solve switch and UA override) is NOT built yet.
+
 ## Not done yet (tell Rev plainly when asked)
 
 - "Suggested for you" page and cross-source genre library: planned with native MangaDex (step 5).
@@ -118,9 +157,12 @@ Cleanup and speed:
 
 ## Next step
 
-1. Rev tests release "Build 9" (0.5.0) on the iPad and reports. Fix whatever is wrong first.
-2. Then continue the brief's order: step 4 (verification web view, ComixTo), step 5 (native MangaDex + suggestions),
-   remaining Stage 1 items listed above.
+1. Rev tests release "Build 10" (0.6.0): MangaDex browse/filter/read; ComixTo install, verification, reading.
+   Expect ComixTo problems; ask for the Log screen.
+2. Remaining Stage 1 items from the agreed scope: source settings menus (DUI), backup/export JSON, storage screen,
+   incognito, NSFW options, customisable tap zones, reading stats, random pick, long-strip (webtoon) mode with
+   tall-image tiling, sidebar layout, global search across sources, saved filter presets, duplicate warning.
+3. Stage 2: chapter downloads; AniList/MangaUpdates "similar titles".
 
 ## Rev's answers (2026-11-14)
 
