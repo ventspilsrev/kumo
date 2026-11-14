@@ -1,0 +1,52 @@
+# XcodeGen project description. The .xcodeproj is generated from this file on
+# the build machine (`xcodegen generate`) and is not stored in the repository.
+name: Kumo
+options:
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # No Apple signing. The IPA is fake-signed with ldid for TrollStore.
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+targets:
+  Kumo:
+    type: application
+    platform: iOS
+    scheme: {}
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      - path: runtime/prelude.js
+        buildPhase: resources
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Kumo
+        UILaunchScreen: {}
+        UIRequiresFullScreen: false
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        # NEVER change this. The library and settings on the iPad belong to it.
+        PRODUCT_BUNDLE_IDENTIFIER: app.kumo.reader
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ARCHS: arm64

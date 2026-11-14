@@ -7,17 +7,18 @@ Last updated: 2026-11-14 (session 1, after step 2)
 
 ## Status
 
-- Step 0 and step 1: done.
+- Step 0, 1 and 1b: done.
 - Step 2 (PC test harness): **done and verified by running it** on 2026-11-14, see "Harness results".
-- No iOS code written yet. Nothing has been built or run on the iPad.
+- Step 3: minimal app written (App/, project.yml, CI workflow). **Not compiled, not run.**
 
 ## Next step
 
-1. Step 1b: research done and shown. **Waiting for Rev**: which extras, which design direction (A/B/C), light
-   theme or not, favourite genres. Then write the agreed scope here. Do not build full UI before that.
-2. Step 3: minimal app (add repo, install MangaKatana, search, read a chapter), XcodeGen project, GitHub Actions
-   workflow, BUILDING.md. Needs the app name first because the bundle identifier must never change afterwards.
-   Rev needs a GitHub account at that point; `gh` is not installed on the PC yet.
+1. Step 3 (minimal app) code is written but **has never been compiled** (no Mac). First CI build will likely show
+   compile errors; fix them from the GitHub Actions log until the IPA builds.
+2. Rev: create GitHub account, run `gh auth login` (see BUILDING.md). Then push, build, install IPA via TrollStore.
+3. Rev tests on the iPad: add netsky repo, install MangaKatana, search, read a chapter. Screenshot the Log tab on problems.
+4. Then step 4 (Cloudflare / verification web view, ComixTo), step 5 (native MangaDex), step 6 (full UI; needs the
+   design direction choice first).
 
 ## Rev's answers (2026-11-14)
 
@@ -51,35 +52,37 @@ Command: `node harness/run.js <repoURL> <SourceId> [search words]`
 - Limits of this proof: Node runs V8 with JIT. JavaScriptCore without JIT on an A8X will be much slower,
   ComixTo's key extraction especially. Speed on the device is untested.
 
-## Feature scope and design (PROPOSED 2026-11-14, waiting for Rev's choices)
+## Feature scope (AGREED with Rev 2026-11-14)
 
-Research basis: a few web searches (Mihon docs, Aidoku release notes, Kavita wiki, Komikku README, MangaDex API
-docs) plus the assistant's own knowledge of these apps. Not an exhaustive survey.
+Stage 1 list from the brief, plus these must-haves:
+- Reader: fit width / height / original, double-tap zoom, keep screen on, reader background colour, reading mode
+  remembered per manga, "next chapter" page at chapter end, long-press to save or reload a page, automatic
+  splitting of very tall pages. **No brightness dimmer** (Rev uses the iPad's own brightness).
+- Library: unread badges, filter chips (unread / started / completed / source), pull to refresh for updates,
+  multi-select, duplicate warning when a title is added from two sources.
+- Browse: include/exclude tag chips always visible, saved filter presets, search across all sources.
+- Privacy: incognito mode, NSFW badge + optional hide + optional cover blur. NSFW is shown by default.
+- Health: per-source status dot (ok / verification needed / failing), storage screen.
 
-Proposed must-haves beyond the brief's Stage 1 list:
-- Reader: fit modes (fit width / height / original), double-tap zoom, keep screen on, reader background colour
-  (black/grey/white), brightness dimmer, per-manga reading mode, "next chapter" transition page, long-press page
-  menu (save/share/reload), automatic splitting of very tall pages (required by the 8192 px limit anyway).
-- Library: unread badge, filter chips (unread / started / completed / source), pull to refresh for updates,
-  multi-select, duplicate warning when the same title is added from two sources, pinned sources.
-- Browse: saved searches / filter presets, tag include/exclude chips always visible, global search across sources.
-- Privacy: incognito mode (no history), NSFW badge + optional hide + optional cover blur.
-- Health: per-source status dot (ok / verification needed / failing) and storage screen.
+Extras Rev chose: (1) double-page spread in landscape with offset toggle, (2) split wide pages,
+(6) customisable tap zones, (8) "similar titles" from AniList/MangaUpdates in suggestions, (11) reading stats and a
+quiet streak counter, (12) random pick from library, (14) chapter downloads (Stage 2).
 
-Extras offered to Rev (not built unless chosen):
- 1 double-page spread in landscape (with offset toggle)   2 split wide pages
- 3 crop borders   4 grayscale / invert / sepia filters   5 auto-scroll for webtoons
- 6 customisable tap zones   7 AniList tracking   8 MangaUpdates/AniList "similar titles" in suggestions
- 9 migrate a title between sources   10 app lock (Touch ID)   11 reading stats and quiet streak
- 12 random pick from library   13 volume-button page turn (hard, may not work)   14 chapter downloads (Stage 2)
+Declined: crop borders, colour filters, auto-scroll, AniList tracking, source migration, app lock, volume buttons.
 
-Not possible / not reliable under TrollStore on iOS 15: push notifications, iCloud sync, dependable background
-update checks (updates are checked when the app is opened or on pull to refresh).
+Suggestions (Rev's direction): do not over-engineer. Main discovery tool is a **genre library**: pick a genre and
+see all manga carrying that tag (per source via getSearchTags + tag search; MangaDex natively). Rev likes romance
+and popular shonen (Bleach, Kagurabachi). "Suggested for you" stays simple on top of that.
 
-Design directions shown to Rev as mockups: A "Sumi" (warm black, paper white, one vermilion accent, serif titles),
-B "Console" (monospace, square corners, phosphor green), C "Mist" (slate blue, rounded, soft blue accent).
-Assistant's recommendation: C as default with B as an optional theme. Layout for all: sidebar in landscape,
-tab bar in portrait/Slide Over, filter chips always visible above the grid.
+Not possible under TrollStore on iOS 15: push notifications, iCloud sync, dependable background update checks.
+
+## Design (decision pending)
+
+- **Dark only. No light theme** (Rev).
+- Directions shown as mockups: A "Sumi" (warm black, paper white, vermilion accent, serif titles), B "Console"
+  (monospace, square, phosphor green), C "Mist" (slate blue, rounded, soft blue accent).
+  Rev has **not picked yet**. Assistant recommends C as default with B as optional theme. Ask again before step 6.
+- Layout for all: sidebar in landscape, tab bar in portrait / Slide Over, filter chips always visible.
 
 ## Repositories (verified by fetching on 2026-11-14)
 
