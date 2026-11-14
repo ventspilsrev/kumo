@@ -16,10 +16,16 @@ enum AppEnvironment {
     }
 }
 
+/// Which tab is showing. Shared so one screen can send the user to another.
+final class AppState: ObservableObject {
+    @Published var tab = 0
+}
+
 @main
 struct KumoApp: App {
     @StateObject private var store = SourceStore()
     @StateObject private var library = LibraryStore()
+    @StateObject private var app = AppState()
 
     init() {
         AppEnvironment.readUserAgent()
@@ -29,19 +35,23 @@ struct KumoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TabView {
+            TabView(selection: $app.tab) {
                 NavigationView { LibraryScreen() }
                     .navigationViewStyle(.stack)
                     .tabItem { Label("Library", systemImage: "books.vertical") }
-                NavigationView { SourcesScreen() }
+                    .tag(0)
+                NavigationView { DiscoverScreen() }
                     .navigationViewStyle(.stack)
-                    .tabItem { Label("Browse", systemImage: "square.grid.2x2") }
-                NavigationView { LogScreen() }
+                    .tabItem { Label("Browse", systemImage: "safari") }
+                    .tag(1)
+                NavigationView { SettingsScreen() }
                     .navigationViewStyle(.stack)
-                    .tabItem { Label("Log", systemImage: "doc.text.magnifyingglass") }
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(2)
             }
             .environmentObject(store)
             .environmentObject(library)
+            .environmentObject(app)
             .accentColor(Theme.accent)
             .preferredColorScheme(.dark)
         }

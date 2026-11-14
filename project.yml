@@ -9,7 +9,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "15.0"
-    MARKETING_VERSION: "0.2.0"
+    MARKETING_VERSION: "0.3.0"
     CURRENT_PROJECT_VERSION: "1"
     # No Apple signing. The IPA is fake-signed with ldid for TrollStore.
     CODE_SIGNING_ALLOWED: "NO"
@@ -30,8 +30,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Kumo
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "0.3.0"
+        CFBundleVersion: "3"
         UILaunchScreen: {}
         UIRequiresFullScreen: false
         ITSAppUsesNonExemptEncryption: false
@@ -51,4 +51,5 @@ targets:
         # NEVER change this. The library and settings on the iPad belong to it.
         PRODUCT_BUNDLE_IDENTIFIER: app.kumo.reader
         TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ARCHS: arm64

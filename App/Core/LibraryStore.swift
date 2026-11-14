@@ -75,6 +75,12 @@ final class LibraryStore: ObservableObject {
             .map(manga(from:))
     }
 
+    /// Everything in the library or in the history: the basis for suggestions.
+    func tasteTitles() -> [StoredManga] {
+        db.rows("SELECT \(LibraryStore.mangaColumns) FROM manga m WHERE in_library = 1 OR last_read_at IS NOT NULL")
+            .map(manga(from:))
+    }
+
     func manga(sourceId: String, mangaId: String) -> StoredManga? {
         db.rows("SELECT \(LibraryStore.mangaColumns) FROM manga m WHERE source_id = ? AND manga_id = ?", [sourceId, mangaId])
             .first.map(manga(from:))

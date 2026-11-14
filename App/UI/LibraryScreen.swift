@@ -4,6 +4,7 @@ import SwiftUI
 struct LibraryScreen: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var store: SourceStore
+    @EnvironmentObject private var app: AppState
     @State private var onlyUnread = false
 
     private let columns = [GridItem(.adaptive(minimum: 130, maximum: 170), spacing: 16, alignment: .top)]
@@ -42,6 +43,11 @@ struct LibraryScreen: View {
                                 .font(Theme.serif(.title3)).foregroundColor(Theme.text)
                             Text("Open the Browse tab, pick a title and tap “Add to library”. It will appear here with its unread count.")
                                 .font(.callout).foregroundColor(Theme.muted)
+                            Button { app.tab = 1 } label: {
+                                Text("Browse manga").font(.headline).foregroundColor(.white)
+                                    .padding(.horizontal, 24).frame(minHeight: 48).background(Theme.accent)
+                            }
+                            .padding(.top, 6)
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
@@ -114,7 +120,7 @@ struct LibraryCell: View {
                     if manga.unread > 0 { Seal(text: "\(manga.unread)").padding(6) }
                 }
             Text(manga.title).font(.footnote).lineLimit(2).foregroundColor(Theme.text)
-            Text(manga.unread > 0 ? "\(manga.unread) unread" : (manga.total > 0 ? "Read" : " "))
+            Text(manga.unread > 0 ? "\(manga.unread) chapters unread" : (manga.total > 0 ? "All read" : " "))
                 .font(.caption2).foregroundColor(Theme.muted)
         }
         .accessibilityElement(children: .ignore)
@@ -134,15 +140,27 @@ struct HistoryCell: View {
                 .clipped()
             VStack(alignment: .leading, spacing: 4) {
                 Text(manga.title).font(Theme.serif(.headline)).lineLimit(2).foregroundColor(Theme.text)
-                Text(manga.total > 0 ? "\(manga.total - manga.unread) of \(manga.total) read" : "Started")
+                Text(manga.total > 0 ? "\(manga.total - manga.unread) of \(manga.total) chapters read" : "Started")
                     .font(.caption).foregroundColor(Theme.muted)
+                if manga.total > 0 {
+                    // Thin progress line: share of chapters read.
+                    GeometryReader { box in
+                        ZStack(alignment: .leading) {
+                            Rectangle().fill(Theme.line)
+                            Rectangle().fill(Theme.accent)
+                                .frame(width: box.size.width * CGFloat(manga.total - manga.unread) / CGFloat(manga.total))
+                        }
+                    }
+                    .frame(height: 3)
+                    .accessibilityHidden(true)
+                }
                 Spacer(minLength: 0)
                 Label("Continue", systemImage: "play.fill").font(.caption.weight(.semibold)).foregroundColor(Theme.accent)
             }
             Spacer(minLength: 0)
         }
         .padding(10)
-        .frame(width: 280, height: 125, alignment: .leading)
+        .frame(width: 320, height: 125, alignment: .leading)
         .background(Theme.surface)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Continue \(manga.title)")

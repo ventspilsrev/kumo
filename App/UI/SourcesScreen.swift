@@ -9,21 +9,19 @@ struct SourcesScreen: View {
 
     var body: some View {
         List {
-            Section(header: Text("Your sources")) {
+            Section(header: Text("Installed"), footer: Text(store.installed.isEmpty ? "" : "Swipe a source to the left to remove it.")) {
                 if store.installed.isEmpty {
                     Text("No sources yet. Add a repository below, then install a source from it.")
                         .font(.callout)
                         .foregroundColor(.secondary)
                 }
                 ForEach(store.installed) { source in
-                    NavigationLink(destination: BrowseScreen(source: source, runtime: store.runtime(for: source.id))) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Text(source.name).font(Theme.serif(.title3, weight: .semibold))
-                                ratingBadge(source.contentRating)
-                            }
-                            Text("Version \(source.version)").font(.caption).foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(source.name).font(Theme.serif(.title3, weight: .semibold))
+                            ratingBadge(source.contentRating)
                         }
+                        Text("Version \(source.version)").font(.caption).foregroundColor(.secondary)
                     }
                 }
                 .onDelete { offsets in
@@ -56,7 +54,7 @@ struct SourcesScreen: View {
         }
         .listStyle(.insetGrouped)
         .background(Theme.background.ignoresSafeArea())
-        .navigationTitle("Browse")
+        .navigationTitle("Sources")
         .sheet(isPresented: $showAdd) { AddRepoSheet() }
         .alert("Problem", isPresented: Binding(get: { alert != nil }, set: { if !$0 { alert = nil } })) {
             Button("OK", role: .cancel) {}

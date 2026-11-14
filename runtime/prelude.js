@@ -350,7 +350,11 @@
         var all = global.Sources || {};
         if (!all[id]) throw new Error('Bundle does not contain source "' + id + '"');
         var src = instances[id] || (instances[id] = new all[id]({}));
-        if (typeof src[method] !== 'function') throw new Error('Source does not support ' + method);
+        if (typeof src[method] !== 'function') {
+          // Optional capability questions ("supportsTagExclusion", ...) simply answer no.
+          if (/^supports/.test(method)) { resolve('false'); return; }
+          throw new Error('Source does not support ' + method);
+        }
         var args = JSON.parse(argsJSON || '[]');
         if (method === 'getHomePageSections') {
           args = [function (section) { onSection(JSON.stringify(plain(section))); }];

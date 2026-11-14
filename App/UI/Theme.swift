@@ -44,12 +44,10 @@ enum Theme {
         let tab = UITabBarAppearance()
         tab.configureWithOpaqueBackground()
         tab.backgroundColor = uiBackground
-        for item in [tab.stackedLayoutAppearance, tab.inlineLayoutAppearance, tab.compactInlineLayoutAppearance] {
-            item.normal.iconColor = uiMuted
-            item.normal.titleTextAttributes = [.foregroundColor: uiMuted]
-            item.selected.iconColor = uiText
-            item.selected.titleTextAttributes = [.foregroundColor: uiText]
-        }
+        // Do NOT set title text attributes here: on iPad they make the tab
+        // labels truncate ("Libr..."). Tint colours do the same job safely.
+        UITabBar.appearance().tintColor = uiText
+        UITabBar.appearance().unselectedItemTintColor = uiMuted
         UITabBar.appearance().standardAppearance = tab
         UITabBar.appearance().scrollEdgeAppearance = tab
 
