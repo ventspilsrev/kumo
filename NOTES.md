@@ -3,32 +3,53 @@
 Working notes for the manga reader project. The full brief is in `docs/BRIEF.md`.
 A new session should read the brief, then this file, then continue at **Next step**.
 
-Last updated: 2026-11-14 (session 1)
+Last updated: 2026-11-14 (session 1, after step 2)
 
 ## Status
 
-- Step 0 (save brief, verify limits, ask questions): done, **waiting for Rev's answers** (see "Open questions").
-- Step 1 (study repos and typings): done, summary below. **Waiting for Rev's go-ahead** before building.
-- No app code written yet. Nothing has been built or run on the iPad.
+- Step 0 and step 1: done.
+- Step 2 (PC test harness): **done and verified by running it** on 2026-11-14, see "Harness results".
+- No iOS code written yet. Nothing has been built or run on the iPad.
 
 ## Next step
 
-1. Get Rev's answers to the open questions.
-2. Step 2: test harness that loads the real MangaKatana bundle and runs search, details, chapters, pages
-   against the live site. Node is NOT installed on Rev's PC (only git and Python 3.14), and `gh` is not installed.
-   Either Rev installs Node LTS locally (faster feedback) or the harness only runs on GitHub Actions.
-3. Step 1b in parallel: feature research (7a) and design directions (7b). Do not build full UI before Rev answers.
+1. Step 1b: feature research (brief 7a) and design directions (7b). Show Rev the shortlist, ask which extras,
+   let Rev pick a design direction and an app name. Do not build full UI before Rev answers.
+2. Step 3: minimal app (add repo, install MangaKatana, search, read a chapter), XcodeGen project, GitHub Actions
+   workflow, BUILDING.md. Needs the app name first because the bundle identifier must never change afterwards.
+   Rev needs a GitHub account at that point; `gh` is not installed on the PC yet.
 
-## Open questions for Rev
+## Rev's answers (2026-11-14)
 
-- iPad storage size and free space
-- Does the iPad have cellular
-- Paperback version in use (Settings, About)
-- Usual reading direction and favourite genres
-- Hide adult/NSFW-tagged content by default?
-- Name idea for the app
-- ComixTo telemetry: block it? (see below; recommendation: block)
-- Install Node.js on the PC for the test harness, or CI only?
+- iPad Air 2, **64 GB**, 22.1 GB used (about 40 GB free). Wi-Fi only, no cellular.
+- Paperback **v0.8.11-r2**.
+- Reading: **landscape, right-to-left** (swipes right, pages turn like a printed manga). Default reader mode = RTL
+  paged; landscape double-page spread is worth offering in the feature shortlist.
+- Favourite genres: not answered yet, ask again during the design step.
+- NSFW: **do not hide by default**. Show a warning/badge and offer a manual "hide" setting.
+- App name: Rev wants something cool, professional and clean. Candidates offered: Kumo, Tsuzuki, Inkline, Folio.
+  Not chosen yet.
+- ComixTo telemetry: **Rev chose to leave it on.** Build the per-source host allow-list anyway as a setting
+  (default: allowed for ComixTo), and say in Settings that this source reports usage timings to its author.
+- Node.js LTS (v26.13.1) was installed on the PC with winget for the harness. `node` is at
+  `C:\Program Files\nodejs\node.exe` (already-open terminals may need a restart to find it).
+
+## Harness results (verified by running, 2026-11-14)
+
+Command: `node harness/run.js <repoURL> <SourceId> [search words]`
+
+- `runtime/prelude.js` builds the `App` global in an empty context; `harness/run.js` is the Node host.
+  The same prelude is meant to be loaded into JavaScriptCore on the iPad, with the `__host` bridge in Swift.
+- **MangaKatana: 9 of 9 steps pass** (repo index, bundle load, home, tags, search, details, chapters, pages,
+  page images through the request manager). Tried with "one piece" and "berserk". Images are JPEG, about
+  780x1200, 200-650 KB. No Cloudflare challenge seen.
+- **ComixTo: 6 of 7 pass** (home, tags, search, details). Its key extraction, request signing and response
+  decryption all work in our runtime. `getChapters` failed on the 6th chapter-list page with the site's security
+  check ("a Cloudflare check that only the web view can pass"). That is expected and is step 4 (web view flow).
+  Not tested yet: chapter pages, image un-scrambling (PBImage/PBCanvas are not implemented in the harness).
+- 0.7 repo (MangaDex): correctly rejected as incompatible.
+- Limits of this proof: Node runs V8 with JIT. JavaScriptCore without JIT on an A8X will be much slower,
+  ComixTo's key extraction especially. Speed on the device is untested.
 
 ## Repositories (verified by fetching on 2026-11-14)
 
