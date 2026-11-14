@@ -29,6 +29,7 @@ struct LogScreen: View {
             }
         }
         .listStyle(.plain)
+        .background(Theme.background.ignoresSafeArea())
         .navigationTitle("Log")
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {

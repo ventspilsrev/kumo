@@ -19,23 +19,30 @@ enum AppEnvironment {
 @main
 struct KumoApp: App {
     @StateObject private var store = SourceStore()
+    @StateObject private var library = LibraryStore()
 
     init() {
         AppEnvironment.readUserAgent()
+        Theme.apply()
         Log.info("Kumo started. User-Agent: \(AppEnvironment.userAgent)")
     }
 
     var body: some Scene {
         WindowGroup {
             TabView {
+                NavigationView { LibraryScreen() }
+                    .navigationViewStyle(.stack)
+                    .tabItem { Label("Library", systemImage: "books.vertical") }
                 NavigationView { SourcesScreen() }
                     .navigationViewStyle(.stack)
-                    .tabItem { Label("Sources", systemImage: "square.stack.3d.up") }
+                    .tabItem { Label("Browse", systemImage: "square.grid.2x2") }
                 NavigationView { LogScreen() }
                     .navigationViewStyle(.stack)
                     .tabItem { Label("Log", systemImage: "doc.text.magnifyingglass") }
             }
             .environmentObject(store)
+            .environmentObject(library)
+            .accentColor(Theme.accent)
             .preferredColorScheme(.dark)
         }
     }

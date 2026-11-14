@@ -9,7 +9,7 @@ struct SourcesScreen: View {
 
     var body: some View {
         List {
-            Section(header: Text("Installed")) {
+            Section(header: Text("Your sources")) {
                 if store.installed.isEmpty {
                     Text("No sources yet. Add a repository below, then install a source from it.")
                         .font(.callout)
@@ -19,7 +19,7 @@ struct SourcesScreen: View {
                     NavigationLink(destination: BrowseScreen(source: source, runtime: store.runtime(for: source.id))) {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
-                                Text(source.name).font(.headline)
+                                Text(source.name).font(Theme.serif(.title3, weight: .semibold))
                                 ratingBadge(source.contentRating)
                             }
                             Text("Version \(source.version)").font(.caption).foregroundColor(.secondary)
@@ -30,6 +30,7 @@ struct SourcesScreen: View {
                     for i in offsets { store.uninstall(store.installed[i].id) }
                 }
             }
+            .listRowBackground(Theme.surface)
 
             ForEach(store.repos) { repo in
                 Section(header: Text(repo.url).textCase(nil), footer: repoFooter(repo)) {
@@ -41,6 +42,7 @@ struct SourcesScreen: View {
                     }
                     Button("Remove repository", role: .destructive) { store.removeRepo(repo.url) }
                 }
+                .listRowBackground(Theme.surface)
             }
 
             Section(footer: Text("Kumo ships with no sources. Nothing leaves this iPad except requests to the sites of sources you install. No analytics, no accounts.")) {
@@ -50,9 +52,11 @@ struct SourcesScreen: View {
                     Label("Add repository", systemImage: "plus")
                 }
             }
+            .listRowBackground(Theme.surface)
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Sources")
+        .background(Theme.background.ignoresSafeArea())
+        .navigationTitle("Browse")
         .sheet(isPresented: $showAdd) { AddRepoSheet() }
         .alert("Problem", isPresented: Binding(get: { alert != nil }, set: { if !$0 { alert = nil } })) {
             Button("OK", role: .cancel) {}

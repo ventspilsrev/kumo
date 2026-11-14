@@ -12,11 +12,11 @@ struct RemoteImage: View {
 
     var body: some View {
         ZStack {
-            Color(white: 0.14)
+            Theme.surface
             if let image = image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else if failed {
-                Image(systemName: "photo").foregroundColor(.secondary)
+                Image(systemName: "photo").foregroundColor(Theme.line)
             }
         }
         .task(id: url ?? "") {
@@ -43,6 +43,7 @@ struct ErrorBox: View {
                 .foregroundColor(.orange)
             Text(message)
                 .font(.callout)
+                .foregroundColor(Theme.text)
                 .multilineTextAlignment(.center)
                 .textSelection(.enabled)
             if let retry = retry {
@@ -65,13 +66,12 @@ struct MangaCell: View {
             RemoteImage(runtime: runtime, url: manga.image)
                 .frame(width: width, height: width * 1.5)
                 .clipped()
-                .cornerRadius(6)
             Text(manga.title)
                 .font(.footnote)
                 .lineLimit(2)
-                .foregroundColor(.primary)
+                .foregroundColor(Theme.text)
             if let subtitle = manga.subtitle, !subtitle.isEmpty {
-                Text(subtitle).font(.caption2).lineLimit(1).foregroundColor(.secondary)
+                Text(subtitle).font(.caption2).lineLimit(1).foregroundColor(Theme.muted)
             }
         }
         .frame(width: width, alignment: .leading)
