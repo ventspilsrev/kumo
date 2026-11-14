@@ -27,8 +27,8 @@ Last updated: 2026-11-14 (session 1, after step 2)
   paged; landscape double-page spread is worth offering in the feature shortlist.
 - Favourite genres: not answered yet, ask again during the design step.
 - NSFW: **do not hide by default**. Show a warning/badge and offer a manual "hide" setting.
-- App name: Rev wants something cool, professional and clean. Candidates offered: Kumo, Tsuzuki, Inkline, Folio.
-  Not chosen yet.
+- App name: **Kumo** (chosen by Rev 2026-11-14). Bundle identifier: `app.kumo.reader`. **Never change it**,
+  the library and settings on the iPad are tied to it.
 - ComixTo telemetry: **Rev chose to leave it on.** Build the per-source host allow-list anyway as a setting
   (default: allowed for ComixTo), and say in Settings that this source reports usage timings to its author.
 - Node.js LTS (v26.13.1) was installed on the PC with winget for the harness. `node` is at
