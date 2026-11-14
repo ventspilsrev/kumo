@@ -7,20 +7,41 @@ Last updated: 2026-11-14 (session 1, after step 2)
 
 ## Status
 
-- Step 0, 1 and 1b: done.
-- Step 2 (PC test harness): **done and verified by running it** on 2026-11-14, see "Harness results".
-- Step 3: minimal app **compiles on GitHub Actions** (Xcode 16.4) and the IPA is published as a release.
-  IPA checked on the PC: arm64, minimum iOS 15.0, bundle id app.kumo.reader, ad-hoc signed. **Never run on a device yet.**
+- Steps 0, 1, 1b, 2, 3: done. **Build 2 ran on Rev's iPad (2026-11-14): everything worked** (add repo, install
+  MangaKatana, home, details, chapters, reader). JavaScriptCore loaded the 712 KB bundle in **124 ms** on the A8X,
+  so interpreter speed is not a problem for ordinary sources.
+- Rev then asked for library, saved progress, two-page reader, Continue button and a less bland layout BEFORE the
+  Cloudflare/MangaDex steps. Done in build 0.2.0 (see below). Compiles on CI; **not yet confirmed on the iPad**.
+
+## What build 0.2.0 contains (compiled, device test pending)
+
+- SQLite database `kumo.sqlite` with versioned migrations (`App/Core/Database.swift`). Schema v1: manga, chapter
+  (read flag, last page, page count), setting. Rule: never edit an existing migration, only append.
+- Library tab (home): "Continue reading" row from history, cover grid with unread counts, All/Unread chips.
+- Manga screen: big Start/Continue button (resumes chapter and page), Add to library, read/unread markers,
+  newest/oldest sort, mark all read/unread, long-press a chapter for "mark this and earlier as read",
+  falls back to the saved chapter list when the source cannot be reached.
+- Reader (`App/UI/ReaderScreen.swift`): right-to-left; **two pages side by side in landscape**, one in portrait;
+  wide pages (already a double page) shown alone; "shift pages" button per manga (offset) for when pairs are
+  misaligned; tap left/right thirds to turn, middle to show/hide the bar; double-tap and pinch zoom; end-of-chapter
+  page with Next button; position saved on every page turn; keeps the screen on.
+- Browse: genre chips per source (from getSearchTags) that list all titles with that tag; search; home rows.
+- Sumi theme (`App/UI/Theme.swift`): warm black, paper text, vermilion accent, serif titles, square corners.
+- Known extension bug worked around: MangaKatana's "Hot Manga" row has no cover addresses (site now uses
+  `lazy-src`, the extension reads `data-src`). The app reuses a cover seen for the same title in another row.
+
+## Not done yet (tell Rev plainly when asked)
+
+- "Suggested for you" page and cross-source genre library: planned with native MangaDex (step 5).
+- Verification web view / cookies persistence (step 4), ComixTo images (PBImage/PBCanvas).
+- Sidebar layout in landscape, settings screen, backup/export JSON, storage screen, incognito, NSFW options,
+  customisable tap zones, reading stats, random pick, downloads, long-strip (webtoon) mode and tall-image tiling.
 
 ## Next step
 
-1. **Rev tests build on the iPad** (first device test ever): install Kumo.ipa from
-   https://github.com/ventspilsrev/kumo/releases via TrollStore, add the netsky 0.8 repo, install MangaKatana,
-   search, open a manga, read a chapter. On any problem: screenshot the error and the Log tab.
-   Things to watch: time shown in the log line "loaded ... KB in ... ms" (JavaScriptCore speed on the A8X),
-   whether covers and pages appear, right-to-left swipe direction, memory warnings in the log.
-2. Then step 4 (verification web view + persistent cookies, ComixTo), step 5 (native MangaDex),
-   step 6 (full UI in design A "Sumi", SQLite library with migrations).
+1. Rev tests build 0.2.0 on the iPad and reports. Fix whatever is wrong first.
+2. Then continue the brief's order: step 4 (verification web view, ComixTo), step 5 (native MangaDex + suggestions),
+   remaining Stage 1 items listed above.
 
 ## Rev's answers (2026-11-14)
 

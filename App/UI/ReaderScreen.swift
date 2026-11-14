@@ -288,12 +288,17 @@ final class ReaderController: UIViewController, UIPageViewControllerDataSource, 
     }
 
     private func report(_ vc: UIViewController?) {
+        var shown: (Int, Int)?
         if let spread = vc as? SpreadViewController, let first = spread.indices.first, let last = spread.indices.last {
             currentFirst = first
-            config.onPage(first, last)
+            shown = (first, last)
         } else if vc is EndViewController, count > 0 {
-            config.onPage(count - 1, count - 1)
+            shown = (count - 1, count - 1)
         }
+        guard let (first, last) = shown else { return }
+        // Deferred: this can run in the middle of a layout pass, and SwiftUI
+        // must not be told about new state while it is laying out.
+        DispatchQueue.main.async { [weak self] in self?.config.onPage(first, last) }
     }
 
     /// The neighbour in reading direction (`forward`) or against it.
