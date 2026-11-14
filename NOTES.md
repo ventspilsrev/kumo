@@ -52,6 +52,31 @@ led to this restructure:
 - Rev finds the look "a bit bland". Open question to Rev: what would make it feel richer (bigger covers, banner
   art, more colour)? No hardware reason for blandness; blur and heavy shadows are the only things to avoid.
 
+## What build 0.4.0 (release "Build 7") adds (compiled, device test pending)
+
+Rev confirmed on the iPad (Build 6): tab labels are fixed, Browse/Settings/filters/suggestions work.
+Two new reports led to this build:
+
+1. **MangaFox failed** with "App Transport Security policy requires the use of a secure connection" (-1022).
+   Cause (reproduced on the PC): fanfox.net answers `https://fanfox.net/manga/<id>` with a 301 redirect to
+   `http://fanfox.net/manga/<id>/`, and its covers are `http://fmcdn.mfcdn.net/...`. Fix: http is **upgraded to
+   https, never used as is**: `SourceRuntime.secure()` for request URLs, `RedirectUpgrader` (URLSession task
+   delegate) for redirects, `ImagePipeline.secureAddress()` for image addresses (also handles `//host/...`).
+   The harness applies the same rule. Verified on the PC: MangaFox passes 9 of 9 and its cover loads over https.
+   ATS exceptions were deliberately NOT added.
+2. **Design "too square, too empty"**. Rev sent three reference mock-ups (rounded cards, pill chips, hero banner
+   with cover art, coloured buttons, "continue reading" card with progress). The Sumi palette stays (warm black,
+   paper text, vermilion accent, plus a sparing gold), but shapes are now rounded:
+   - `Theme.swift`: `Theme.card()`, `Chip`/`Seal` pills, `PrimaryLabel`, `SectionHeader`, `HeroBanner`
+     (cover enlarged as background + gradient, no blur), `ProgressLine`, bold rounded headings.
+     Serif is kept only for big titles (app name, manga title, banner title).
+   - Library: "Continue reading" banner (goes straight into the reader via `MangaScreen(autoContinue:)`),
+     three stat tiles, "Jump back in" cards, rounded grid.
+   - Browse: source pill, one-tap genre pills (top genres only), Filters pill, banner suggestion, "See all".
+   - Manga page: cover-art header, status/author/chapter facts, genre pills, pill buttons, chapter cards with
+     number, progress and a round read/unread button.
+   Performance rule kept: no blur, no shadows on scrolling cells.
+
 ## Not done yet (tell Rev plainly when asked)
 
 - "Suggested for you" page and cross-source genre library: planned with native MangaDex (step 5).
@@ -61,7 +86,7 @@ led to this restructure:
 
 ## Next step
 
-1. Rev tests release "Build 6" (0.3.0) on the iPad and reports. Fix whatever is wrong first.
+1. Rev tests release "Build 7" (0.4.0) on the iPad and reports. Fix whatever is wrong first.
 2. Then continue the brief's order: step 4 (verification web view, ComixTo), step 5 (native MangaDex + suggestions),
    remaining Stage 1 items listed above.
 
@@ -123,8 +148,9 @@ Not possible under TrollStore on iOS 15: push notifications, iCloud sync, depend
 
 ## Design (decided 2026-11-14)
 
-- **Direction A "Sumi"**: warm near-black background, paper-white text, ONE vermilion accent (like a seal stamp),
-  serif titles (system serif "New York"), sans body, thin hairlines, little rounding. Calm and book-like.
+- **Direction A "Sumi" palette, rounded shapes** (changed 2026-11-14 after Rev's "too square, too empty" feedback
+  and reference images): warm near-black background, paper-white text, vermilion accent, sparing gold; rounded
+  cards, pill chips and buttons, cover-art banners, bold rounded headings, serif only for big titles.
 - **Dark only. No light theme.**
 - Layout: sidebar in landscape, tab bar in portrait / Slide Over, filter chips always visible above grids.
 - Palette used in the mockup: background #131211, text #ECE6DA, muted #8E887C, hairline #2A2826 / #3A3733,
