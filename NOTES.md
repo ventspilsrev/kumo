@@ -76,13 +76,20 @@ and popular shonen (Bleach, Kagurabachi). "Suggested for you" stays simple on to
 
 Not possible under TrollStore on iOS 15: push notifications, iCloud sync, dependable background update checks.
 
-## Design (decision pending)
+## Design (decided 2026-11-14)
 
-- **Dark only. No light theme** (Rev).
-- Directions shown as mockups: A "Sumi" (warm black, paper white, vermilion accent, serif titles), B "Console"
-  (monospace, square, phosphor green), C "Mist" (slate blue, rounded, soft blue accent).
-  Rev has **not picked yet**. Assistant recommends C as default with B as optional theme. Ask again before step 6.
-- Layout for all: sidebar in landscape, tab bar in portrait / Slide Over, filter chips always visible.
+- **Direction A "Sumi"**: warm near-black background, paper-white text, ONE vermilion accent (like a seal stamp),
+  serif titles (system serif "New York"), sans body, thin hairlines, little rounding. Calm and book-like.
+- **Dark only. No light theme.**
+- Layout: sidebar in landscape, tab bar in portrait / Slide Over, filter chips always visible above grids.
+- Palette used in the mockup: background #131211, text #ECE6DA, muted #8E887C, hairline #2A2826 / #3A3733,
+  accent #D2452A.
+
+## GitHub
+
+- Account `ventspilsrev`, public repository `kumo`. Local commits use the GitHub no-reply address on purpose,
+  so Rev's private e-mail is not published. Do not change `git config user.email` back.
+- The assistant pushes and reads build logs with `gh` (at `C:\Program Files\GitHub CLI\gh.exe`).
 
 ## Repositories (verified by fetching on 2026-11-14)
 
