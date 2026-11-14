@@ -77,6 +77,38 @@ Two new reports led to this build:
      number, progress and a round read/unread button.
    Performance rule kept: no blur, no shadows on scrolling cells.
 
+## What build 0.5.0 (release "Build 9") changes (compiled, device test pending)
+
+Rev confirmed on the iPad (Build 7): the rounded redesign shows correctly, MangaFox details load.
+Two bugs reported, both fixed, plus a cleanup/performance pass Rev asked for:
+
+1. **MangaFox chapters "stuck loading"**. Not a hang: that extension fetches every page address with separate
+   requests, three per page, strictly one after another (147 requests for a 46-page chapter), and ran into the
+   old 90 s limit. Changes:
+   - `SourceRuntime.fetch`: an identical GET (same URL and headers) within 5 s is answered from memory.
+     MangaFox drops from 147 to 56 requests for that chapter. Verified in the harness (which now applies the same
+     rule): still 9 of 9, about 30 s on the PC. It will stay slow-ish; that is the extension's design.
+   - `getChapterDetails` gets a 300 s limit; the reader shows elapsed seconds and request count after 4 s.
+   - Page lists are cached in memory for 30 min (`ReaderScreen.pageCache`), so reopening is instant.
+2. **Source switch button dead**. Cause: a `scaledToFill` image is clipped visually but still receives touches
+   outside its frame, so the banner's background artwork covered the controls above it. `RemoteImage` now draws
+   the picture as a non-interactive overlay on a fixed colour, so it can never exceed its frame.
+   **Rule for later: never put a fill-mode image in a frame without this pattern.**
+
+Cleanup and speed:
+- Library and manga screens read the database when the library changes (`library.revision`), not on every redraw.
+- The reader saves the position on each page turn WITHOUT bumping `revision`; it calls `library.refresh()` once on
+  close. Before, every page turn redrew Library, Browse and the manga page behind the reader.
+- `Database.batch`: chapter lists are written with one prepared statement in one transaction.
+- Browse keeps what it loaded per source for the session (no refetch when switching back).
+- Covers still in the memory cache appear immediately (`ImagePipeline.cached`); reused cells never show the
+  previous cover; banner and cover share one decoded image.
+- Downloaded images are capped at 500 MB (oldest removed first, checked shortly after launch); Settings shows the size.
+- Compiler output is now free of warnings.
+- Honest scope note: this was a targeted pass over the hot paths plus a scan for unused symbols, not a rewrite.
+  Known leftovers: `.onChange(of:)` single-parameter form (deprecated on iOS 17, correct for iOS 15);
+  `RepoSource.tags` badges are decoded but not shown yet.
+
 ## Not done yet (tell Rev plainly when asked)
 
 - "Suggested for you" page and cross-source genre library: planned with native MangaDex (step 5).
@@ -86,7 +118,7 @@ Two new reports led to this build:
 
 ## Next step
 
-1. Rev tests release "Build 7" (0.4.0) on the iPad and reports. Fix whatever is wrong first.
+1. Rev tests release "Build 9" (0.5.0) on the iPad and reports. Fix whatever is wrong first.
 2. Then continue the brief's order: step 4 (verification web view, ComixTo), step 5 (native MangaDex + suggestions),
    remaining Stage 1 items listed above.
 

@@ -30,7 +30,9 @@ struct SourceError: LocalizedError {
 ///
 /// Threading: everything that touches the context runs on `queue` (serial).
 /// Network callbacks hop back onto `queue` before calling into JavaScript.
-final class SourceRuntime {
+/// That queue is what makes sharing an instance between threads safe, hence
+/// `@unchecked Sendable` (the compiler cannot see the queue discipline).
+final class SourceRuntime: @unchecked Sendable {
     let sourceId: String
 
     private let queue: DispatchQueue
