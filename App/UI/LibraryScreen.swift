@@ -7,15 +7,17 @@ struct LibraryScreen: View {
     @EnvironmentObject private var store: SourceStore
     @EnvironmentObject private var app: AppState
     @State private var onlyUnread = false
+    // Loaded from the database when the screen appears or the library changes,
+    // not on every redraw.
+    @State private var history: [StoredManga] = []
+    @State private var all: [StoredManga] = []
+    @State private var numbers: (titles: Int, chaptersRead: Int, unread: Int) = (0, 0, 0)
+    @State private var lastRead: (name: String, page: Int, pageCount: Int)?
 
     private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 18, alignment: .top)]
 
     var body: some View {
-        _ = library.revision
-        let history = library.history(limit: 12)
-        let all = library.library()
         let shown = onlyUnread ? all.filter { $0.unread > 0 } : all
-        let numbers = library.stats()
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 26) {
                 if let problem = library.databaseProblem {
@@ -51,13 +53,22 @@ struct LibraryScreen: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle("Kumo")
+        .onAppear(perform: reload)
+        .onChange(of: library.revision) { _ in reload() }
+    }
+
+    private func reload() {
+        history = library.history(limit: 12)
+        all = library.library()
+        numbers = library.stats()
+        lastRead = history.first.flatMap { library.lastRead($0) }
     }
 
     // MARK: Banner
 
     @ViewBuilder
     private func continueBanner(_ manga: StoredManga) -> some View {
-        let last = library.lastRead(manga)
+        let last = lastRead
         let fraction = manga.total > 0 ? Double(manga.total - manga.unread) / Double(manga.total) : 0
         let detail: String = {
             guard let last = last else { return "Pick up where you stopped" }

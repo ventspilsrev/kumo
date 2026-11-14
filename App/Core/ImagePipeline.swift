@@ -20,10 +20,50 @@ final class ImagePipeline {
     private init() {
         memory.totalCostLimit = 48 * 1024 * 1024
         try? FileManager.default.createDirectory(at: diskDir, withIntermediateDirectories: true)
+        // Keep the downloaded images from growing without limit.
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 5) { [weak self] in
+            self?.trimDisk(toBytes: ImagePipeline.diskLimit)
+        }
         NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
                                                object: nil, queue: nil) { [weak self] _ in
             self?.memory.removeAllObjects()
         }
+    }
+
+    /// Downloaded images may use at most this much storage (oldest go first).
+    static let diskLimit = 500 * 1024 * 1024
+
+    private func diskFiles() -> [(url: URL, size: Int, date: Date)] {
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        let urls = (try? FileManager.default.contentsOfDirectory(at: diskDir, includingPropertiesForKeys: keys)) ?? []
+        return urls.compactMap { url in
+            guard let values = try? url.resourceValues(forKeys: Set(keys)) else { return nil }
+            return (url, values.fileSize ?? 0, values.contentModificationDate ?? .distantPast)
+        }
+    }
+
+    /// Storage used by downloaded images, in bytes.
+    func diskUsage() -> Int {
+        diskFiles().reduce(0) { $0 + $1.size }
+    }
+
+    private func trimDisk(toBytes limit: Int) {
+        var files = diskFiles()
+        var total = files.reduce(0) { $0 + $1.size }
+        guard total > limit else { return }
+        files.sort { $0.date < $1.date }
+        for file in files where total > limit {
+            try? FileManager.default.removeItem(at: file.url)
+            total -= file.size
+        }
+        Log.info("Image cache trimmed to \(total / 1_048_576) MB")
+    }
+
+    /// An already decoded image, if it is still in memory. Lets a cover
+    /// appear immediately while scrolling back, without a loading flash.
+    func cached(url rawURL: String, maxPixel: Int) -> UIImage? {
+        guard let url = ImagePipeline.secureAddress(rawURL) else { return nil }
+        return memory.object(forKey: "\(maxPixel)|\(url)" as NSString)
     }
 
     private func diskURL(_ key: String) -> URL {

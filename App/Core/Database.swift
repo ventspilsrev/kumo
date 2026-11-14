@@ -149,6 +149,38 @@ final class Database {
         }
     }
 
+    /// Runs the same statement for many rows inside one transaction, with
+    /// optional statements before and after. The statement is compiled once
+    /// and reused, which matters for chapter lists with hundreds of rows.
+    @discardableResult
+    func batch(before: [(String, [Any?])] = [], sql: String, rows: [[Any?]], after: [(String, [Any?])] = []) -> Bool {
+        queue.sync {
+            guard handle != nil else { return false }
+            sqlite3_exec(handle, "BEGIN", nil, nil, nil)
+            var ok = true
+            for (text, values) in before where ok { ok = unlockedRun(text, values) }
+            if ok, !rows.isEmpty {
+                var statement: OpaquePointer?
+                if sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK {
+                    for row in rows {
+                        bind(statement, row)
+                        let code = sqlite3_step(statement)
+                        if code != SQLITE_DONE && code != SQLITE_ROW { ok = false; break }
+                        sqlite3_reset(statement)
+                        sqlite3_clear_bindings(statement)
+                    }
+                } else {
+                    ok = false
+                }
+                if !ok { Log.error("SQL batch failed: \(lastError()) in: \(sql.prefix(80))") }
+                sqlite3_finalize(statement)
+            }
+            for (text, values) in after where ok { ok = unlockedRun(text, values) }
+            sqlite3_exec(handle, ok ? "COMMIT" : "ROLLBACK", nil, nil, nil)
+            return ok
+        }
+    }
+
     /// Runs a query. Values come back as Int64, Double, String or NSNull.
     func rows(_ sql: String, _ values: [Any?] = []) -> [[String: Any]] {
         queue.sync {

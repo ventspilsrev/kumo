@@ -156,20 +156,22 @@ final class LibraryStore: ObservableObject {
     /// Stores the chapter list. Read marks and page positions of chapters
     /// that still exist are kept; chapters the source removed are dropped.
     func saveChapters(sourceId: String, mangaId: String, chapters: [Chapter]) {
-        var statements: [(String, [Any?])] = [
-            ("UPDATE chapter SET position = -1 WHERE source_id = ? AND manga_id = ?", [sourceId, mangaId])
-        ]
+        var rows: [[Any?]] = []
+        rows.reserveCapacity(chapters.count)
         for (position, c) in chapters.enumerated() {
-            statements.append(("""
+            rows.append([sourceId, mangaId, c.id, c.name, c.chapNum, c.volume, c.group, c.time, c.langCode, position])
+        }
+        db.batch(
+            before: [("UPDATE chapter SET position = -1 WHERE source_id = ? AND manga_id = ?", [sourceId, mangaId])],
+            sql: """
                 INSERT INTO chapter(source_id, manga_id, chapter_id, name, chap_num, volume, grp, time, lang, position)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(source_id, manga_id, chapter_id) DO UPDATE SET
                     name = excluded.name, chap_num = excluded.chap_num, volume = excluded.volume,
                     grp = excluded.grp, time = excluded.time, lang = excluded.lang, position = excluded.position
-                """, [sourceId, mangaId, c.id, c.name, c.chapNum, c.volume, c.group, c.time, c.langCode, position]))
-        }
-        statements.append(("DELETE FROM chapter WHERE source_id = ? AND manga_id = ? AND position = -1", [sourceId, mangaId]))
-        db.transaction(statements)
+                """,
+            rows: rows,
+            after: [("DELETE FROM chapter WHERE source_id = ? AND manga_id = ? AND position = -1", [sourceId, mangaId])])
         changed()
     }
 
@@ -191,8 +193,13 @@ final class LibraryStore: ObservableObject {
             ("UPDATE manga SET last_read_at = ?, last_chapter_id = ? WHERE source_id = ? AND manga_id = ?",
              [now, chapterId, sourceId, mangaId])
         ])
-        changed()
+        // Deliberately no changed() here: this runs on every page turn, and
+        // redrawing the screens behind the reader each time would be wasted
+        // work. The reader calls refresh() once when it closes.
     }
+
+    /// Tells every screen showing library data to reload.
+    func refresh() { changed() }
 
     func setRead(_ read: Bool, sourceId: String, mangaId: String, chapterIds: [String]) {
         let sql = "UPDATE chapter SET read = ?, last_page = CASE WHEN ? THEN last_page ELSE 0 END WHERE source_id = ? AND manga_id = ? AND chapter_id = ?"

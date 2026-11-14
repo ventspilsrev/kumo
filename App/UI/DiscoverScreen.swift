@@ -14,11 +14,31 @@ final class DiscoverModel: ObservableObject {
     private var loadedFor: String?
     private var generation = 0
 
+    /// What was loaded for a source, kept for this run of the app so that
+    /// switching back to a source is instant and makes no new requests.
+    private struct Snapshot {
+        let sections: [HomeSection]
+        let tagSections: [TagSection]
+        let supportsExclusion: Bool
+        let suggestions: [SuggestionRow]
+    }
+    private var snapshots: [String: Snapshot] = [:]
+
     func load(source: InstalledSource, runtime: SourceRuntime, library: LibraryStore, force: Bool = false) async {
         if loadedFor == source.id && !force { return }
         loadedFor = source.id
         generation += 1
         let mine = generation
+        if !force, let saved = snapshots[source.id] {
+            sections = saved.sections
+            tagSections = saved.tagSections
+            supportsExclusion = saved.supportsExclusion
+            suggestions = saved.suggestions
+            homeError = nil
+            homeLoading = false
+            suggestionsLoading = false
+            return
+        }
         sections = []
         tagSections = []
         suggestions = []
@@ -73,6 +93,10 @@ final class DiscoverModel: ObservableObject {
             }
         }
         suggestionsLoading = false
+        if !sections.isEmpty {
+            snapshots[source.id] = Snapshot(sections: sections, tagSections: tagSections,
+                                            supportsExclusion: supportsExclusion, suggestions: suggestions)
+        }
     }
 
     /// Tags that are genres (as opposed to sort order, status and so on).

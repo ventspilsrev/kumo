@@ -43,7 +43,10 @@ struct ReaderScreen: View {
         .statusBar(hidden: true)
         .task(id: index) { await load() }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }     // keep the screen on while reading
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            library.refresh()   // positions were saved quietly; update the screens behind once
+        }
     }
 
     @ViewBuilder
@@ -69,7 +72,7 @@ struct ReaderScreen: View {
                     .ignoresSafeArea()
             }
         } else {
-            ProgressView("Loading pages…").foregroundColor(Theme.muted)
+            LoadingPages(runtime: runtime)
         }
     }
 
@@ -133,13 +136,30 @@ struct ReaderScreen: View {
         index = newIndex   // triggers load() through .task(id:)
     }
 
+    /// Page addresses of chapters opened recently, so reopening one is
+    /// instant. Kept in memory only, for 30 minutes (addresses can expire).
+    private static var pageCache: [String: (time: Date, pages: [String])] = [:]
+
     private func load() async {
         error = nil
         pages = nil
+        let key = "\(runtime.sourceId)|\(mangaId)|\(chapter.id)"
         do {
-            let details = try await runtime.call(ChapterDetails.self, "getChapterDetails", [mangaId, chapter.id])
-            let list = details.pages ?? []
-            Log.info("[\(runtime.sourceId)] chapter \(chapter.id): \(list.count) pages")
+            let list: [String]
+            if let hit = ReaderScreen.pageCache[key], Date().timeIntervalSince(hit.time) < 1800 {
+                list = hit.pages
+            } else {
+                // Generous limit: some sources need one request per page.
+                let started = Date()
+                let details = try await runtime.call(ChapterDetails.self, "getChapterDetails", [mangaId, chapter.id], timeout: 300)
+                list = details.pages ?? []
+                let seconds = String(format: "%.1f", Date().timeIntervalSince(started))
+                Log.info("[\(runtime.sourceId)] chapter \(chapter.id): \(list.count) pages in \(seconds) s")
+                if !list.isEmpty {
+                    if ReaderScreen.pageCache.count > 40 { ReaderScreen.pageCache.removeAll() }
+                    ReaderScreen.pageCache[key] = (Date(), list)
+                }
+            }
             pages = list
             if !list.isEmpty {
                 let start = min(page, list.count - 1)
@@ -148,6 +168,37 @@ struct ReaderScreen: View {
         } catch is CancellationError {
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// Shown while a chapter's page list is being fetched. After a few seconds
+/// it explains the wait and counts requests, so a slow source does not look
+/// like a frozen app.
+struct LoadingPages: View {
+    let runtime: SourceRuntime
+    @State private var seconds = 0
+    @State private var requests = 0
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+            Text("Loading pages…").foregroundColor(Theme.muted)
+            if seconds >= 4 {
+                Text("Still working: \(seconds) s, \(requests) requests so far.\nSome sources fetch every page address one by one, which can take a minute.")
+                    .font(.footnote)
+                    .foregroundColor(Theme.muted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+        }
+        .task {
+            let before = runtime.requestCount
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                seconds += 1
+                requests = runtime.requestCount - before
+            }
         }
     }
 }

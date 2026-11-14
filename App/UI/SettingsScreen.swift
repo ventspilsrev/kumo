@@ -5,6 +5,7 @@ struct SettingsScreen: View {
     @EnvironmentObject private var store: SourceStore
     @AppStorage("reader.twoPages") private var twoPages = true
     @State private var cacheCleared = false
+    @State private var cacheMB: Int?
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -34,7 +35,7 @@ struct SettingsScreen: View {
             .listRowBackground(Theme.surface)
 
             Section(header: Text("Troubleshooting"),
-                    footer: Text("If something fails, open the log and send a screenshot of it.")) {
+                    footer: Text("If something fails, open the log and send a screenshot of it. Downloaded covers and pages are kept up to 500 MB; the oldest are removed first.")) {
                 NavigationLink(destination: LogScreen()) {
                     Label("Log", systemImage: "doc.text.magnifyingglass")
                 }
@@ -42,7 +43,8 @@ struct SettingsScreen: View {
                     ImagePipeline.shared.clearDisk()
                     cacheCleared = true
                 } label: {
-                    Label(cacheCleared ? "Image cache cleared" : "Clear image cache", systemImage: "trash")
+                    Label(cacheCleared ? "Image cache cleared"
+                          : cacheMB.map { "Clear image cache (\($0) MB)" } ?? "Clear image cache", systemImage: "trash")
                 }
                 .disabled(cacheCleared)
             }
@@ -59,5 +61,9 @@ struct SettingsScreen: View {
         .listStyle(.insetGrouped)
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle("Settings")
+        .task {
+            // Measured off the main thread: it walks every cached file.
+            cacheMB = await Task.detached { ImagePipeline.shared.diskUsage() / 1_048_576 }.value
+        }
     }
 }

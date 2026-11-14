@@ -167,10 +167,11 @@ struct HeroBanner<Extra: View>: View {
     var body: some View {
         ZStack(alignment: .leading) {
             GeometryReader { box in
-                RemoteImage(runtime: runtime, url: cover, maxPixel: 500)
+                // Same size as the sharp cover on the right: one download, one decode.
+                RemoteImage(runtime: runtime, url: cover, maxPixel: 600)
                     .frame(width: box.size.width, height: box.size.height)
-                    .clipped()
             }
+            .allowsHitTesting(false)
             LinearGradient(colors: [Theme.background.opacity(0.97), Theme.background.opacity(0.82), Theme.background.opacity(0.35)],
                            startPoint: .leading, endPoint: .trailing)
             HStack(alignment: .center, spacing: 20) {

@@ -43,6 +43,27 @@ final class SourceRuntime {
     private var nextTimer = 1
     private var state: [String: String] = [:]
 
+    /// A finished GET response, kept for a few seconds (see `fetch`).
+    private struct Recent {
+        let time: Date
+        let status: Int
+        let headers: [String: String]
+        let data: Data
+        let binary: Bool
+    }
+    private var recent: [String: Recent] = [:]
+    private static let recentLifetime: TimeInterval = 5
+
+    private let counterLock = NSLock()
+    private var requests = 0
+    /// Number of network requests this source has made. Shown while a slow
+    /// source is working, so the wait does not look like a freeze.
+    var requestCount: Int {
+        counterLock.lock()
+        defer { counterLock.unlock() }
+        return requests
+    }
+
     init(sourceId: String, bundleURL: URL, stateURL: URL) {
         self.sourceId = sourceId
         self.stateURL = stateURL
@@ -259,6 +280,26 @@ final class SourceRuntime {
             }
         }
 
+        // Identical GET requests made within a few seconds are answered from
+        // memory. Some sources ask for the very same address several times in
+        // a row (MangaFox does, for every page); this saves a third of its
+        // requests and is kinder to the site.
+        var recentKey: String?
+        if request.httpMethod == "GET", request.httpBody == nil {
+            let headerText = (request.allHTTPHeaderFields ?? [:]).sorted { $0.key < $1.key }
+                .map { "\($0.key)=\($0.value)" }.joined(separator: "&")
+            let key = url.absoluteString + "|" + headerText
+            recentKey = key
+            if let hit = recent[key], Date().timeIntervalSince(hit.time) < SourceRuntime.recentLifetime,
+               let ctx = context, let result = makeResult(hit, in: ctx) {
+                resolve.call(withArguments: [result])
+                return
+            }
+        }
+        counterLock.lock()
+        requests += 1
+        counterLock.unlock()
+
         let host = url.host ?? ""
         let task = session.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
@@ -279,15 +320,28 @@ final class SourceRuntime {
                 let type = headers["content-type"] ?? ""
                 // Images stay bytes only; decoding megabytes of binary as text wastes memory.
                 let binary = type.hasPrefix("image/") || type.contains("octet-stream")
-                guard let result = JSValue(newObjectIn: ctx) else { return }
-                result.setObject(http.statusCode, forKeyedSubscript: "status" as NSString)
-                result.setObject(headers, forKeyedSubscript: "headers" as NSString)
-                result.setObject(binary ? "" : String(decoding: data, as: UTF8.self), forKeyedSubscript: "text" as NSString)
-                result.setObject(self.makeArrayBuffer(data, in: ctx), forKeyedSubscript: "bytes" as NSString)
+                let answer = Recent(time: Date(), status: http.statusCode, headers: headers, data: data, binary: binary)
+                // Only small successful text answers are remembered.
+                if let key = recentKey, !binary, http.statusCode == 200, data.count < 300_000 {
+                    let now = Date()
+                    self.recent = self.recent.filter { now.timeIntervalSince($0.value.time) < SourceRuntime.recentLifetime }
+                    self.recent[key] = answer
+                }
+                guard let result = self.makeResult(answer, in: ctx) else { return }
                 resolve.call(withArguments: [result])
             }
         }
         task.resume()
+    }
+
+    /// Builds the object handed back to JavaScript for one response.
+    private func makeResult(_ answer: Recent, in ctx: JSContext) -> JSValue? {
+        guard let result = JSValue(newObjectIn: ctx) else { return nil }
+        result.setObject(answer.status, forKeyedSubscript: "status" as NSString)
+        result.setObject(answer.headers, forKeyedSubscript: "headers" as NSString)
+        result.setObject(answer.binary ? "" : String(decoding: answer.data, as: UTF8.self), forKeyedSubscript: "text" as NSString)
+        result.setObject(makeArrayBuffer(answer.data, in: ctx), forKeyedSubscript: "bytes" as NSString)
+        return result
     }
 
     /// Copies `data` into a JavaScript ArrayBuffer. JavaScriptCore frees the
@@ -335,7 +389,8 @@ final class SourceRuntime {
 
     /// Calls a method of the source and returns its result as JSON data.
     /// `onSection` receives each home section as it arrives.
-    func callRaw(_ method: String, _ args: [Any] = [], onSection: ((Data) -> Void)? = nil) async throws -> Data {
+    /// `timeout` is how long to wait before giving up, in seconds.
+    func callRaw(_ method: String, _ args: [Any] = [], timeout: Int = 90, onSection: ((Data) -> Void)? = nil) async throws -> Data {
         let id = sourceId
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
             queue.async {
@@ -363,16 +418,16 @@ final class SourceRuntime {
                     unsafeBitCast(reject, to: AnyObject.self),
                     unsafeBitCast(section, to: AnyObject.self)
                 ])
-                self.queue.asyncAfter(deadline: .now() + 90) {
-                    once.finish(.failure(SourceError(message: "\(method) did not finish within 90 seconds")))
+                self.queue.asyncAfter(deadline: .now() + .seconds(timeout)) {
+                    once.finish(.failure(SourceError(message: "\(method) did not finish within \(timeout) seconds")))
                 }
             }
         }
     }
 
     /// Calls a method and decodes the JSON result.
-    func call<T: Decodable>(_ type: T.Type, _ method: String, _ args: [Any] = []) async throws -> T {
-        let data = try await callRaw(method, args)
+    func call<T: Decodable>(_ type: T.Type, _ method: String, _ args: [Any] = [], timeout: Int = 90) async throws -> T {
+        let data = try await callRaw(method, args, timeout: timeout)
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {

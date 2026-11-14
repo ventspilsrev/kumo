@@ -25,7 +25,8 @@ const query = queryWords.join(' ') || 'one piece';
 // comes from the real web view.
 const USER_AGENT = 'Mozilla/5.0 (iPad; CPU OS 15_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6 Mobile/15E148 Safari/604.1';
 
-const stats = { requests: 0, hosts: new Set(), events: [] };
+const stats = { requests: 0, reused: 0, hosts: new Set(), events: [] };
+const recent = new Map(); // recently answered GET requests
 const cookies = []; // {name,value,domain,path,expires}
 const state = new Map();
 
@@ -67,9 +68,14 @@ const host = {
       // Same rule as the app: http is upgraded to https, never used as is.
       if (u.protocol === 'http:') { u.protocol = 'https:'; req = { ...req, url: u.toString() }; }
       if (u.protocol !== 'https:') throw new Error(`Blocked non-HTTPS request to ${u.host}`);
+      const headers = { ...req.headers };
+      // Same rule as the app: an identical GET within 5 seconds is answered from memory.
+      const recentKey = req.method === 'GET' && req.body == null
+        ? u.toString() + '|' + Object.keys(headers).sort().map(k => `${k}=${headers[k]}`).join('&') : null;
+      const hit = recentKey && recent.get(recentKey);
+      if (hit && Date.now() - hit.time < 5000) { stats.reused++; return hit.answer; }
       stats.requests++;
       stats.hosts.add(u.host);
-      const headers = { ...req.headers };
       const jar = cookieHeaderFor(req.url);
       if (jar && !Object.keys(headers).some(k => k.toLowerCase() === 'cookie')) headers.Cookie = jar;
       const res = await fetch(req.url, {
@@ -83,7 +89,9 @@ const host = {
       const type = outHeaders['content-type'] || '';
       // Only decode text for text-like bodies; images stay bytes only.
       const text = /^image\/|octet-stream/i.test(type) ? '' : new TextDecoder('utf-8').decode(bytes);
-      return { status: res.status, headers: outHeaders, bytes, text };
+      const answer = { status: res.status, headers: outHeaders, bytes, text };
+      if (recentKey && text && res.status === 200 && bytes.byteLength < 300000) recent.set(recentKey, { time: Date.now(), answer });
+      return answer;
     })().then(resolve, err => reject(`${err.name}: ${err.message} (${req.url})`));
   },
   cookiesGet() { return cookies.map(c => ({ ...c })); },
@@ -246,7 +254,7 @@ async function main() {
 main().catch(() => {}).finally(() => {
   const failed = results.filter(r => !r.ok).length;
   console.log(`\n${results.length - failed} passed, ${failed} failed. ` +
-    `${stats.requests} requests to: ${[...stats.hosts].join(', ') || 'none'}`);
+    `${stats.requests} requests (${stats.reused} repeats answered from memory) to: ${[...stats.hosts].join(', ') || 'none'}`);
   if (stats.events.length) console.log(`Events: ${JSON.stringify(stats.events)}`);
   process.exit(failed ? 1 : 0);
 });

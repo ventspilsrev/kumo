@@ -29,10 +29,10 @@ struct MangaScreen: View {
     }
 
     private var sourceId: String { runtime.sourceId }
-    private var stored: StoredManga? {
-        _ = library.revision
-        return library.manga(sourceId: sourceId, mangaId: mangaId)
-    }
+    // Saved state of this title, reloaded when the library changes rather
+    // than queried on every redraw.
+    @State private var stored: StoredManga?
+    @State private var progress: [String: ChapterProgress] = [:]
     private var title: String { info?.titles?.first ?? stored?.title ?? fallbackTitle }
     private var cover: String? {
         if let c = info?.image, !c.isEmpty { return c }
@@ -43,7 +43,6 @@ struct MangaScreen: View {
 
     var body: some View {
         let saved = stored
-        let progress = library.progress(sourceId: sourceId, mangaId: mangaId)
         let readingOrder = ordered
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
@@ -59,6 +58,8 @@ struct MangaScreen: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear(perform: reload)
+        .onChange(of: library.revision) { _ in reload() }
         .task {
             if info == nil { await loadInfo() }
             if chapters == nil { await loadChapters() }
@@ -69,15 +70,20 @@ struct MangaScreen: View {
         }
     }
 
+    private func reload() {
+        stored = library.manga(sourceId: sourceId, mangaId: mangaId)
+        progress = library.progress(sourceId: sourceId, mangaId: mangaId)
+    }
+
     // MARK: Header (banner with cover art, title, tags, actions)
 
     private func header(_ saved: StoredManga?, readingOrder: [Chapter], progress: [String: ChapterProgress]) -> some View {
         ZStack(alignment: .bottomLeading) {
             GeometryReader { box in
-                RemoteImage(runtime: runtime, url: cover, maxPixel: 500)
+                RemoteImage(runtime: runtime, url: cover, maxPixel: 700)
                     .frame(width: box.size.width, height: box.size.height)
-                    .clipped()
             }
+            .allowsHitTesting(false)
             LinearGradient(colors: [Theme.background.opacity(0.55), Theme.background.opacity(0.9), Theme.background],
                            startPoint: .top, endPoint: .bottom)
             HStack(alignment: .bottom, spacing: 22) {
