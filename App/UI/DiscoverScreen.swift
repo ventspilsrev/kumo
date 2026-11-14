@@ -523,10 +523,10 @@ struct FilterSheet: View {
                     .font(.footnote.weight(.semibold))
                     .foregroundColor(isIncluded ? Theme.background : isExcluded ? Theme.accent : Theme.line)
                 Text(tag.label)
+                    .strikethrough(isExcluded)   // on Text itself: the View version needs iOS 16
                     .font(.subheadline)
                     .foregroundColor(isIncluded ? Theme.background : isExcluded ? Theme.accent : Theme.text)
                     .lineLimit(1)
-                    .strikethrough(isExcluded)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
