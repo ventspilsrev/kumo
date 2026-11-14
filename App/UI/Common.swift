@@ -59,7 +59,12 @@ struct RemoteImage: View {
 /// A readable error with a retry button. The text can be selected and copied.
 struct ErrorBox: View {
     let message: String
+    /// When given, and the source says its site may ask for verification, a
+    /// "Verify on website" button is offered next to "Try again".
+    var runtime: SourceRuntime?
     var retry: (() -> Void)?
+
+    @State private var showVerification = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -73,6 +78,20 @@ struct ErrorBox: View {
                 .textSelection(.enabled)
             if let retry = retry {
                 Button(action: retry) { PrimaryLabel(text: "Try again", symbol: "arrow.clockwise") }
+            }
+            if let runtime = runtime, runtime.supportsVerification {
+                Button { showVerification = true } label: {
+                    Label("Verify on website", systemImage: "checkmark.shield")
+                        .font(Theme.heading(.subheadline))
+                        .foregroundColor(Theme.text)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 46)
+                        .background(Capsule().fill(Theme.raised))
+                }
+                .accessibilityHint("Opens the source's website so you can pass its check, then tries again")
+                .sheet(isPresented: $showVerification) {
+                    VerificationScreen(runtime: runtime) { retry?() }
+                }
             }
         }
         .padding(24)

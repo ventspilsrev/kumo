@@ -52,7 +52,7 @@ struct ReaderScreen: View {
     @ViewBuilder
     private var content: some View {
         if let error = error {
-            ErrorBox(message: error) { Task { await load() } }
+            ErrorBox(message: error, runtime: runtime) { Task { await load() } }
         } else if let pages = pages {
             if pages.isEmpty {
                 Text("This chapter has no pages.").foregroundColor(Theme.muted)

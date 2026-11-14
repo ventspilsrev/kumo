@@ -9,7 +9,7 @@ struct SourcesScreen: View {
 
     var body: some View {
         List {
-            Section(header: Text("Installed"), footer: Text(store.installed.isEmpty ? "" : "Swipe a source to the left to remove it.")) {
+            Section(header: Text("Installed"), footer: Text("MangaDex is built in and uses the official MangaDex API. Swipe any other source to the left to remove it.")) {
                 if store.installed.isEmpty {
                     Text("No sources yet. Add a repository below, then install a source from it.")
                         .font(.callout)
@@ -21,7 +21,8 @@ struct SourcesScreen: View {
                             Text(source.name).font(Theme.heading(.headline))
                             ratingBadge(source.contentRating)
                         }
-                        Text("Version \(source.version)").font(.caption).foregroundColor(.secondary)
+                        Text(SourceStore.isBuiltIn(source) ? "Built in · version \(source.version)" : "Version \(source.version)")
+                            .font(.caption).foregroundColor(.secondary)
                     }
                 }
                 .onDelete { offsets in
@@ -43,7 +44,7 @@ struct SourcesScreen: View {
                 .listRowBackground(Theme.surface)
             }
 
-            Section(footer: Text("Kumo ships with no sources. Nothing leaves this iPad except requests to the sites of sources you install. No analytics, no accounts.")) {
+            Section(footer: Text("Apart from the built-in MangaDex source, Kumo ships with no sources. Nothing leaves this iPad except requests to MangaDex and to the sites of sources you install. No analytics, no accounts.")) {
                 Button {
                     showAdd = true
                 } label: {

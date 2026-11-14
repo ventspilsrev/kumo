@@ -1,5 +1,7 @@
 import Foundation
+import ImageIO
 import JavaScriptCore
+import UIKit
 
 /// Some sites answer an https request with a redirect to plain http
 /// (fanfox.net does). iOS refuses plain http, and so do we: the redirect is
@@ -34,11 +36,24 @@ struct SourceError: LocalizedError {
 /// `@unchecked Sendable` (the compiler cannot see the queue discipline).
 final class SourceRuntime: @unchecked Sendable {
     let sourceId: String
+    /// Capability bits the source declares (16 = may need site verification).
+    let intents: Int
+    /// The source's website, used as a fallback page for verification.
+    let homeURL: String?
+
+    /// True if the source says its site may ask to verify that you are human.
+    var supportsVerification: Bool { intents & 16 != 0 }
 
     private let queue: DispatchQueue
     private let session: URLSession
     private let stateURL: URL
+    private let cookiesURL: URL
     private var context: JSContext!
+    // Decoded images and drawing surfaces used by sources that un-scramble
+    // pages. Only the most recent few are kept.
+    private var images: [Int: CGImage] = [:]
+    private var canvases: [Int: CGContext] = [:]
+    private var nextHandle = 1
     private var loadError: String?
     private var lastException: String?
     private var timers: [Int: JSValue] = [:]
@@ -66,14 +81,17 @@ final class SourceRuntime: @unchecked Sendable {
         return requests
     }
 
-    init(sourceId: String, bundleURL: URL, stateURL: URL) {
+    init(sourceId: String, bundleURL: URL, stateURL: URL, intents: Int = 0, homeURL: String? = nil) {
         self.sourceId = sourceId
+        self.intents = intents
+        self.homeURL = homeURL
         self.stateURL = stateURL
+        self.cookiesURL = stateURL.deletingLastPathComponent().appendingPathComponent("cookies.json")
         self.queue = DispatchQueue(label: "kumo.source.\(sourceId)")
 
         // Each source gets its own URLSession with its own cookie jar, so one
-        // source can never see another source's cookies.
-        // (In-memory for now; persistence comes with the verification flow.)
+        // source can never see another source's cookies. The jar lives in
+        // memory and is saved to this source's own folder (see persistCookies).
         let config = URLSessionConfiguration.ephemeral
         config.httpMaximumConnectionsPerHost = 4
         config.timeoutIntervalForResource = 120
@@ -84,9 +102,82 @@ final class SourceRuntime: @unchecked Sendable {
            let saved = try? JSONDecoder().decode([String: String].self, from: data) {
             state = saved
         }
+        restoreCookies()
         // Loading a bundle parses several hundred KB of JavaScript, so do it
         // off the main thread. Calls made meanwhile simply wait in the queue.
         queue.async { self.setUp(bundleURL: bundleURL) }
+    }
+
+    // MARK: - Cookies
+    //
+    // Cookies (including the "you passed the check" cookie a site sets after
+    // verification) are stored in a file inside the app's private folder,
+    // one file per source. Not the Keychain: that needs entitlements which
+    // are untested under TrollStore. The file is not readable by other apps.
+
+    private struct SavedCookie: Codable {
+        let name: String
+        let value: String
+        let domain: String
+        let path: String
+        let expires: Double?
+        let secure: Bool
+    }
+
+    private var cookieStorage: HTTPCookieStorage? { session.configuration.httpCookieStorage }
+
+    private func restoreCookies() {
+        guard let data = try? Data(contentsOf: cookiesURL),
+              let saved = try? JSONDecoder().decode([SavedCookie].self, from: data) else { return }
+        let now = Date().timeIntervalSince1970
+        for c in saved where c.expires == nil || (c.expires ?? 0) > now {
+            var props: [HTTPCookiePropertyKey: Any] = [.name: c.name, .value: c.value, .domain: c.domain, .path: c.path]
+            if let expires = c.expires { props[.expires] = Date(timeIntervalSince1970: expires) }
+            if c.secure { props[.secure] = "TRUE" }
+            if let cookie = HTTPCookie(properties: props) { cookieStorage?.setCookie(cookie) }
+        }
+    }
+
+    /// Writes the current cookies to disk. Session cookies (no expiry) are
+    /// kept too, because verification cookies are often of that kind.
+    private func persistCookies() {
+        let saved = (cookieStorage?.cookies ?? []).map {
+            SavedCookie(name: $0.name, value: $0.value, domain: $0.domain, path: $0.path,
+                        expires: $0.expiresDate?.timeIntervalSince1970, secure: $0.isSecure)
+        }
+        if let data = try? JSONEncoder().encode(saved) {
+            try? data.write(to: cookiesURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+
+    /// Takes over cookies collected in the verification web view.
+    func importCookies(_ cookies: [HTTPCookie]) {
+        queue.async {
+            for cookie in cookies { self.cookieStorage?.setCookie(cookie) }
+            self.recent.removeAll()   // answers remembered from before the check are stale
+            self.persistCookies()
+            Log.info("[\(self.sourceId)] took over \(cookies.count) cookies from the verification page: " +
+                     cookies.map { $0.name }.sorted().joined(separator: ", "))
+        }
+    }
+
+    /// The page to open for verification and the User-Agent to open it with.
+    /// Asks the source first (it knows its site's check page); falls back to
+    /// the source's home page.
+    func verificationRequest() async -> (url: URL, userAgent: String?)? {
+        struct Wanted: Decodable {
+            let url: String
+            let headers: [String: String]?
+        }
+        if let wanted = try? await call(Wanted.self, "getCloudflareBypassRequestAsync", []),
+           let parsed = SourceRuntime.lenientURL(wanted.url), let url = SourceRuntime.secure(parsed) {
+            let agent = wanted.headers?.first { $0.key.lowercased() == "user-agent" }?.value
+            return (url, agent)
+        }
+        if let home = homeURL, let parsed = URL(string: home), let url = SourceRuntime.secure(parsed) {
+            return (url, nil)
+        }
+        return nil
     }
 
     // MARK: - Setup
@@ -189,6 +280,7 @@ final class SourceRuntime: @unchecked Sendable {
             }
             if let made = HTTPCookie(properties: props) {
                 self?.session.configuration.httpCookieStorage?.setCookie(made)
+                self?.persistCookies()
             }
         }
         host.setObject(unsafeBitCast(cookieSet, to: AnyObject.self), forKeyedSubscript: "cookieSet" as NSString)
@@ -200,6 +292,7 @@ final class SourceRuntime: @unchecked Sendable {
             for c in storage.cookies ?? [] where c.name == name && c.domain.hasSuffix(domain) {
                 storage.deleteCookie(c)
             }
+            self?.persistCookies()
         }
         host.setObject(unsafeBitCast(cookieRemove, to: AnyObject.self), forKeyedSubscript: "cookieRemove" as NSString)
 
@@ -218,6 +311,8 @@ final class SourceRuntime: @unchecked Sendable {
         }
         host.setObject(unsafeBitCast(stateSet, to: AnyObject.self), forKeyedSubscript: "stateSet" as NSString)
 
+        installImageBridge(on: host, in: ctx)
+
         let event: @convention(block) (String, JSValue) -> Void = { name, payload in
             let detail = payload.isObject ? (payload.toDictionary().map { "\($0)" } ?? "") : ""
             Log.warn("[\(id)] event \(name) \(detail)")
@@ -225,6 +320,75 @@ final class SourceRuntime: @unchecked Sendable {
         host.setObject(unsafeBitCast(event, to: AnyObject.self), forKeyedSubscript: "event" as NSString)
 
         ctx.setObject(host, forKeyedSubscript: "__host" as NSString)
+    }
+
+    // MARK: - Image bridge
+    //
+    // Used by sources whose sites scramble page images (ComixTo): the source
+    // decodes the picture, copies its tiles onto a canvas in the right order
+    // and encodes the result. All pixel work happens here, natively.
+
+    /// Largest canvas a source may create (pixels). Protects memory.
+    private static let maxCanvasPixels = 40_000_000
+
+    private func newHandle() -> Int {
+        // Keep only the newest few objects; a page needs one image and one canvas.
+        if images.count > 6 { images = images.filter { $0.key >= nextHandle - 6 } }
+        if canvases.count > 6 { canvases = canvases.filter { $0.key >= nextHandle - 6 } }
+        nextHandle += 1
+        return nextHandle
+    }
+
+    private func installImageBridge(on host: JSValue, in ctx: JSContext) {
+        let imageDecode: @convention(block) (JSValue) -> Any = { [weak self] raw in
+            guard let self = self, let data = self.data(fromTypedArray: raw), !data.isEmpty,
+                  let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return NSNull() }
+            let id = self.newHandle()
+            self.images[id] = image
+            return ["id": id, "width": image.width, "height": image.height]
+        }
+        host.setObject(unsafeBitCast(imageDecode, to: AnyObject.self), forKeyedSubscript: "imageDecode" as NSString)
+
+        let canvasCreate: @convention(block) () -> Int = { [weak self] in
+            self?.newHandle() ?? 0
+        }
+        host.setObject(unsafeBitCast(canvasCreate, to: AnyObject.self), forKeyedSubscript: "canvasCreate" as NSString)
+
+        let canvasSetSize: @convention(block) (Int, Double, Double) -> Void = { [weak self] id, width, height in
+            guard let self = self, width.isFinite, height.isFinite, width >= 1, height >= 1,
+                  width * height <= Double(SourceRuntime.maxCanvasPixels) else { return }
+            self.canvases[id] = CGContext(data: nil, width: Int(width), height: Int(height), bitsPerComponent: 8,
+                                          bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        }
+        host.setObject(unsafeBitCast(canvasSetSize, to: AnyObject.self), forKeyedSubscript: "canvasSetSize" as NSString)
+
+        let canvasDraw: @convention(block) (Int, Int, Double, Double, Double, Double, Double, Double) -> Void = {
+            [weak self] canvasId, imageId, sx, sy, sw, sh, dx, dy in
+            guard let self = self, let canvas = self.canvases[canvasId], let image = self.images[imageId],
+                  [sx, sy, sw, sh, dx, dy].allSatisfy({ $0.isFinite }), sw >= 1, sh >= 1,
+                  let tile = image.cropping(to: CGRect(x: sx, y: sy, width: sw, height: sh)) else { return }
+            // Sources count rows from the top; Core Graphics counts from the bottom.
+            let y = Double(canvas.height) - dy - sh
+            canvas.draw(tile, in: CGRect(x: dx, y: y, width: sw, height: sh))
+        }
+        host.setObject(unsafeBitCast(canvasDraw, to: AnyObject.self), forKeyedSubscript: "canvasDraw" as NSString)
+
+        let canvasEncode: @convention(block) (Int, String) -> Any = { [weak self] id, format in
+            // iOS 15 cannot write WebP. Answering "not available" makes the
+            // source ask for PNG next, which is the fallback it already has.
+            guard let self = self, !format.lowercased().contains("webp"),
+                  let canvas = self.canvases[id], let image = canvas.makeImage() else { return NSNull() }
+            // JPEG is returned even when PNG was asked for: it is several
+            // times smaller and faster to write, and the image decoder goes
+            // by the file's contents, not by the declared type.
+            guard let data = UIImage(cgImage: image).jpegData(compressionQuality: 0.92),
+                  let ctx = self.context else { return NSNull() }
+            self.canvases[id] = nil
+            return self.makeArrayBuffer(data, in: ctx)
+        }
+        host.setObject(unsafeBitCast(canvasEncode, to: AnyObject.self), forKeyedSubscript: "canvasEncode" as NSString)
     }
 
     // MARK: - Network bridge
@@ -319,6 +483,7 @@ final class SourceRuntime: @unchecked Sendable {
                 let data = data ?? Data()
                 var headers: [String: String] = [:]
                 for (key, value) in http.allHeaderFields { headers["\(key)".lowercased()] = "\(value)" }
+                if headers["set-cookie"] != nil { self.persistCookies() }
                 let type = headers["content-type"] ?? ""
                 // Images stay bytes only; decoding megabytes of binary as text wastes memory.
                 let binary = type.hasPrefix("image/") || type.contains("octet-stream")

@@ -312,14 +312,36 @@
     return manager;
   };
 
-  // Images (ComixTo un-scrambling). Provided natively by the host later.
+  // Images. Some sources receive scrambled page images and put the tiles
+  // back in order themselves (ComixTo). The pixel work is done natively by
+  // the host; JavaScript only holds small handles.
   App.createPBImage = function (info) {
-    if (!host.imageDecode) throw new Error('PBImage is not available in this host yet');
-    return host.imageDecode(info.data);
+    if (!host.imageDecode) throw new Error('PBImage is not available in this host');
+    var meta = host.imageDecode(info.data);   // {id, width, height} or null
+    if (!meta) throw new Error('The image could not be decoded');
+    return { __image: meta.id, width: meta.width, height: meta.height, data: info.data };
   };
   App.createPBCanvas = function () {
-    if (!host.canvasCreate) throw new Error('PBCanvas is not available in this host yet');
-    return host.canvasCreate();
+    if (!host.canvasCreate) throw new Error('PBCanvas is not available in this host');
+    var id = host.canvasCreate();
+    var canvas = {
+      width: 0,
+      height: 0,
+      setSize: function (width, height) {
+        canvas.width = width;
+        canvas.height = height;
+        host.canvasSetSize(id, width, height);
+      },
+      drawImage: function (image, sx, sy, sw, sh, dx, dy) {
+        host.canvasDraw(id, image.__image, sx, sy, sw, sh, dx, dy);
+      },
+      // Returns the encoded bytes, or undefined if the format is not available.
+      encode: function (format) {
+        var buffer = host.canvasEncode(id, String(format));
+        return buffer ? new Uint8Array(buffer) : undefined;
+      }
+    };
+    return canvas;
   };
 
   // -------------------------------------------------------------- dispatcher

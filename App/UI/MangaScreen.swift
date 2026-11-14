@@ -48,7 +48,7 @@ struct MangaScreen: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 header(saved, readingOrder: readingOrder, progress: progress)
                 if let error = infoError, info == nil, saved == nil {
-                    ErrorBox(message: error) { Task { await loadInfo() } }.padding(.horizontal, 20)
+                    ErrorBox(message: error, runtime: runtime) { Task { await loadInfo() } }.padding(.horizontal, 20)
                 }
                 description(saved)
                 chapterList(readingOrder, progress: progress)
@@ -235,7 +235,7 @@ struct MangaScreen: View {
     @ViewBuilder
     private func chapterList(_ readingOrder: [Chapter], progress: [String: ChapterProgress]) -> some View {
         if let error = chaptersError, chapters == nil {
-            ErrorBox(message: error) { Task { await loadChapters() } }.padding(.horizontal, 20)
+            ErrorBox(message: error, runtime: runtime) { Task { await loadChapters() } }.padding(.horizontal, 20)
         } else if chapters != nil {
             SectionHeader(title: "Chapters", note: fromCache ? "Saved copy, the source could not be reached" : "\(readingOrder.count) in total") {
                 HStack(spacing: 8) {

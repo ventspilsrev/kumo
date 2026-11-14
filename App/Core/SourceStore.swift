@@ -20,6 +20,13 @@ final class SourceStore: ObservableObject {
         var installed: [InstalledSource]
     }
 
+    /// MangaDex ships inside the app (written for Kumo against the official
+    /// API, see runtime/mangadex.js). It cannot be removed.
+    static let builtIn = InstalledSource(id: "MangaDex", name: "MangaDex", version: "1.0.0", repoURL: "built-in",
+                                         contentRating: "MATURE", websiteBaseURL: "https://mangadex.org", intents: 5)
+
+    static func isBuiltIn(_ source: InstalledSource) -> Bool { source.repoURL == "built-in" }
+
     @Published private(set) var repos: [Repo] = []
     @Published private(set) var installed: [InstalledSource] = []
 
@@ -32,13 +39,14 @@ final class SourceStore: ObservableObject {
         if let data = try? Data(contentsOf: savedURL),
            let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             repos = saved.repos.map { Repo(url: $0) }
-            installed = saved.installed
+            installed = saved.installed.filter { $0.id != SourceStore.builtIn.id }
         }
+        installed.insert(SourceStore.builtIn, at: 0)
         for repo in repos { Task { await refresh(repo.url) } }
     }
 
     private func save() {
-        let saved = Saved(repos: repos.map { $0.url }, installed: installed)
+        let saved = Saved(repos: repos.map { $0.url }, installed: installed.filter { !SourceStore.isBuiltIn($0) })
         do {
             try JSONEncoder().encode(saved).write(to: savedURL, options: .atomic)
         } catch {
@@ -110,7 +118,10 @@ final class SourceStore: ObservableObject {
     }
 
     private func bundleURL(_ id: String) -> URL {
-        sourcesDir.appendingPathComponent(id, isDirectory: true).appendingPathComponent("source.js")
+        if id == SourceStore.builtIn.id, let inApp = Bundle.main.url(forResource: "mangadex", withExtension: "js") {
+            return inApp
+        }
+        return sourcesDir.appendingPathComponent(id, isDirectory: true).appendingPathComponent("source.js")
     }
 
     func installedVersion(_ id: String) -> String? {
@@ -121,6 +132,7 @@ final class SourceStore: ObservableObject {
     func install(_ source: RepoSource, from repo: Repo) async -> String? {
         guard repo.index?.isCompatible == true else { return "This repository is not built for the 0.8 format." }
         guard SourceStore.isSafeId(source.id) else { return "The source has an invalid id." }
+        guard source.id != SourceStore.builtIn.id else { return "MangaDex is already built into Kumo." }
         do {
             guard let url = URL(string: "\(repo.url)/\(source.id)/source.js") else { throw SourceError(message: "Bad address") }
             var request = URLRequest(url: url)
@@ -145,7 +157,11 @@ final class SourceStore: ObservableObject {
                                     intents: source.intents)
         installed.removeAll { $0.id == source.id }
         installed.append(entry)
-        installed.sort { $0.name.lowercased() < $1.name.lowercased() }
+        // Built-in source first, then alphabetical.
+        installed.sort {
+            if SourceStore.isBuiltIn($0) != SourceStore.isBuiltIn($1) { return SourceStore.isBuiltIn($0) }
+            return $0.name.lowercased() < $1.name.lowercased()
+        }
         runtimes[source.id] = nil   // an update must load the new file
         save()
         Log.info("Installed \(source.name) \(source.version)")
@@ -153,6 +169,7 @@ final class SourceStore: ObservableObject {
     }
 
     func uninstall(_ id: String) {
+        guard id != SourceStore.builtIn.id else { return }
         installed.removeAll { $0.id == id }
         runtimes[id] = nil
         try? FileManager.default.removeItem(at: sourcesDir.appendingPathComponent(id, isDirectory: true))
@@ -163,7 +180,10 @@ final class SourceStore: ObservableObject {
     func runtime(for id: String) -> SourceRuntime {
         if let existing = runtimes[id] { return existing }
         let dir = sourcesDir.appendingPathComponent(id, isDirectory: true)
-        let made = SourceRuntime(sourceId: id, bundleURL: bundleURL(id), stateURL: dir.appendingPathComponent("state.json"))
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let entry = installed.first { $0.id == id }
+        let made = SourceRuntime(sourceId: id, bundleURL: bundleURL(id), stateURL: dir.appendingPathComponent("state.json"),
+                                 intents: entry?.intents ?? 0, homeURL: entry?.websiteBaseURL)
         runtimes[id] = made
         return made
     }

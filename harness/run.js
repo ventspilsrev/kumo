@@ -13,9 +13,15 @@ const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
 
-const [repoArg, sourceId, ...queryWords] = process.argv.slice(2);
+// Two ways to pick a bundle:
+//   node harness/run.js <repoURL> <SourceId> [search words]        (from a repository)
+//   node harness/run.js --file <path.js> <SourceId> [search words]  (a local file, e.g. the built-in MangaDex)
+let argv = process.argv.slice(2);
+let localFile = null;
+if (argv[0] === '--file') { localFile = argv[1]; argv = ['local file', ...argv.slice(2)]; }
+const [repoArg, sourceId, ...queryWords] = argv;
 if (!repoArg || !sourceId) {
-  console.error('Usage: node harness/run.js <repoURL> <SourceId> [search words]');
+  console.error('Usage: node harness/run.js <repoURL> <SourceId> [search words]\n       node harness/run.js --file <path.js> <SourceId> [search words]');
   process.exit(2);
 }
 const repo = repoArg.replace(/\/+$/, '');
@@ -143,6 +149,7 @@ async function main() {
   // ---- repository index
   let entry;
   await step('repo: versioning.json loads and lists the source', async () => {
+    if (localFile) return [`skipped: using local file ${localFile}`];
     if (!repo.startsWith('https://')) throw new Error('Repository URL must be https');
     const res = await fetch(`${repo}/versioning.json`, { signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -158,7 +165,9 @@ async function main() {
   // ---- bundle
   let ctx;
   await step('bundle: source.js downloads and evaluates in an empty context', async () => {
-    const res = await fetch(`${repo}/${sourceId}/source.js`, { signal: AbortSignal.timeout(60000) });
+    const res = localFile
+      ? { ok: true, text: async () => fs.readFileSync(localFile, 'utf8') }
+      : await fetch(`${repo}/${sourceId}/source.js`, { signal: AbortSignal.timeout(60000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const code = await res.text();
     ctx = vm.createContext({ __host: host });

@@ -17,7 +17,7 @@ struct SettingsScreen: View {
     var body: some View {
         List {
             Section(header: Text("Sources"),
-                    footer: Text("Kumo ships with no sources. You add repositories yourself and install sources from them.")) {
+                    footer: Text("MangaDex is built in. Other sources come from repositories you add yourself.")) {
                 NavigationLink(destination: SourcesScreen()) {
                     HStack {
                         Label("Sources and repositories", systemImage: "square.stack.3d.up")
@@ -52,7 +52,7 @@ struct SettingsScreen: View {
 
             Section(header: Text("Privacy"),
                     footer: Text("Version \(version)")) {
-                Text("No analytics, no telemetry, no accounts. Nothing leaves this iPad except the requests your installed sources make to their own sites when you browse or read. A source can see what you search and open on its site.")
+                Text("No analytics, no telemetry, no accounts. Nothing leaves this iPad except the requests your sources make to their own sites when you browse or read. A source can see what you search and open on its site. Cookies from site verification are kept in a private file inside the app, one per source.")
                     .font(.callout)
                     .foregroundColor(Theme.muted)
             }

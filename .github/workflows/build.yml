@@ -38,6 +38,7 @@ jobs:
         run: |
           APP=build/Build/Products/Release-iphoneos/Kumo.app
           test -f "$APP/prelude.js"
+          test -f "$APP/mangadex.js"
           ldid -S "$APP/Kumo"
           mkdir Payload
           cp -R "$APP" Payload/

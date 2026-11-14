@@ -139,6 +139,7 @@ struct DiscoverScreen: View {
     @State private var included: [Tag] = []
     @State private var excluded: [Tag] = []
     @State private var showFilters = false
+    @State private var showVerification = false
     @State private var results: [PartialManga]?
     @State private var nextPage: JSONValue?
     @State private var searching = false
@@ -260,6 +261,22 @@ struct DiscoverScreen: View {
                         .background(Capsule().fill(Theme.raised))
                 }
                 Spacer()
+                if runtime.supportsVerification {
+                    // Like the cloud button in Paperback: open the site, pass its check, come back.
+                    Button { showVerification = true } label: {
+                        Image(systemName: "checkmark.shield")
+                            .font(.headline)
+                            .foregroundColor(Theme.text)
+                            .frame(width: 46, height: 46)
+                            .background(Circle().fill(Theme.raised))
+                    }
+                    .accessibilityLabel("Verify on the source's website")
+                    .sheet(isPresented: $showVerification) {
+                        VerificationScreen(runtime: runtime) {
+                            Task { await model.load(source: source, runtime: runtime, library: library, force: true) }
+                        }
+                    }
+                }
                 Button { showFilters = true } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "slider.horizontal.3")
@@ -403,7 +420,7 @@ struct DiscoverScreen: View {
         } else if let error = model.homeError, model.sections.isEmpty {
             HStack {
                 Spacer()
-                ErrorBox(message: error) {
+                ErrorBox(message: error, runtime: runtime) {
                     if let source = source {
                         Task { await model.load(source: source, runtime: runtime, library: library, force: true) }
                     }
@@ -425,7 +442,7 @@ struct DiscoverScreen: View {
     @ViewBuilder
     private func resultsView(_ runtime: SourceRuntime) -> some View {
         if let error = searchError, (results ?? []).isEmpty {
-            HStack { Spacer(); ErrorBox(message: error) { Task { await search(runtime, reset: true) } }; Spacer() }
+            HStack { Spacer(); ErrorBox(message: error, runtime: runtime) { Task { await search(runtime, reset: true) } }; Spacer() }
         } else if searching && results == nil {
             HStack { Spacer(); ProgressView("Loading…"); Spacer() }.padding(40)
         } else if let results = results {
