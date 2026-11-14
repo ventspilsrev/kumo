@@ -32,9 +32,20 @@ final class ImagePipeline {
     }
 
     /// - Parameter maxPixel: longest side of the decoded image, in pixels.
-    func image(runtime: SourceRuntime, url: String, maxPixel: Int) async throws -> UIImage {
-        guard url.lowercased().hasPrefix("https://") else {
-            throw SourceError(message: "Image address is missing or not https")
+    /// Sources sometimes give "//host/cover.jpg" or "http://..." addresses.
+    /// Both are turned into https; anything else is rejected.
+    static func secureAddress(_ raw: String) -> String? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = text.lowercased()
+        if lower.hasPrefix("https://") { return text }
+        if lower.hasPrefix("http://") { return "https://" + text.dropFirst(7) }
+        if text.hasPrefix("//") { return "https:" + text }
+        return nil
+    }
+
+    func image(runtime: SourceRuntime, url rawURL: String, maxPixel: Int) async throws -> UIImage {
+        guard let url = ImagePipeline.secureAddress(rawURL) else {
+            throw SourceError(message: "Image address is missing or not a web address")
         }
         let cacheKey = "\(maxPixel)|\(url)" as NSString
         if let hit = memory.object(forKey: cacheKey) { return hit }

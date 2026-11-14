@@ -120,7 +120,10 @@ struct DiscoverScreen: View {
     @State private var searching = false
     @State private var searchError: String?
 
-    private let columns = [GridItem(.adaptive(minimum: 130, maximum: 170), spacing: 16, alignment: .top)]
+    private let columns = [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 18, alignment: .top)]
+    /// Genres offered as one-tap pills, in this order, when the source has them.
+    private static let quickGenres = ["action", "romance", "comedy", "fantasy", "shonen", "adventure", "drama",
+                                      "sliceoflife", "horror", "mystery", "scifi", "sports", "seinen", "shojo"]
 
     private var source: InstalledSource? {
         store.installed.first(where: { $0.id == savedSourceId }) ?? store.installed.first
@@ -142,14 +145,15 @@ struct DiscoverScreen: View {
 
     private var noSources: some View {
         VStack(spacing: 14) {
-            Image(systemName: "square.stack.3d.up.slash").font(.largeTitle).foregroundColor(Theme.muted)
-            Text("No sources installed").font(Theme.serif(.title2, weight: .semibold)).foregroundColor(Theme.text)
+            Image(systemName: "square.stack.3d.up.slash")
+                .font(.largeTitle).foregroundColor(Theme.accent)
+                .frame(width: 84, height: 84)
+                .background(Circle().fill(Theme.accentSoft))
+            Text("No sources installed").font(Theme.heading(.title2)).foregroundColor(Theme.text)
             Text("Kumo ships without sources. Add a repository and install a source, then manga from it shows up here.")
                 .font(.callout).foregroundColor(Theme.muted).multilineTextAlignment(.center).frame(maxWidth: 460)
-            Button { app.tab = 2 } label: {
-                Text("Open Settings").font(.headline).foregroundColor(.white)
-                    .padding(.horizontal, 24).frame(minHeight: 48).background(Theme.accent)
-            }
+            Button { app.tab = 2 } label: { PrimaryLabel(text: "Open Settings", symbol: "gearshape.fill") }
+                .padding(.top, 6)
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -157,8 +161,8 @@ struct DiscoverScreen: View {
 
     private func content(_ source: InstalledSource, runtime: SourceRuntime) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 22) {
-                controls(source)
+            LazyVStack(alignment: .leading, spacing: 26) {
+                controls(source, runtime: runtime)
                 if showingResults {
                     resultsView(runtime)
                 } else {
@@ -180,21 +184,33 @@ struct DiscoverScreen: View {
         .sheet(isPresented: $showFilters) {
             FilterSheet(sections: model.tagSections, supportsExclusion: model.supportsExclusion,
                         included: included, excluded: excluded) { newIncluded, newExcluded in
-                included = newIncluded
-                excluded = newExcluded
-                if hasFilters || !query.isEmpty {
-                    Task { await search(runtime, reset: true) }
-                } else {
-                    clearResults()
-                }
+                apply(included: newIncluded, excluded: newExcluded, runtime: runtime)
             }
         }
     }
 
-    // MARK: Controls (source picker, filter button, active filters)
+    private func apply(included newIncluded: [Tag], excluded newExcluded: [Tag], runtime: SourceRuntime) {
+        included = newIncluded
+        excluded = newExcluded
+        if hasFilters || !query.isEmpty {
+            Task { await search(runtime, reset: true) }
+        } else {
+            clearResults()
+        }
+    }
 
-    private func controls(_ source: InstalledSource) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+    // MARK: Controls (source picker, quick genres, filter button)
+
+    private var quickTags: [Tag] {
+        var byKey: [String: Tag] = [:]
+        for tag in model.genreTags where byKey[Suggestions.normalize(tag.label)] == nil {
+            byKey[Suggestions.normalize(tag.label)] = tag
+        }
+        return DiscoverScreen.quickGenres.compactMap { byKey[$0] }
+    }
+
+    private func controls(_ source: InstalledSource, runtime: SourceRuntime) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 if store.installed.count > 1 {
                     Menu {
@@ -202,60 +218,87 @@ struct DiscoverScreen: View {
                             Button(other.name) { switchSource(to: other.id) }
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            Text(source.name).font(.subheadline.weight(.medium))
-                            Image(systemName: "chevron.down").font(.caption)
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.stack.3d.up.fill").foregroundColor(Theme.accent)
+                            Text(source.name).font(Theme.heading(.subheadline))
+                            Image(systemName: "chevron.down").font(.caption.weight(.bold))
                         }
                         .foregroundColor(Theme.text)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 44)
-                        .overlay(Rectangle().stroke(Theme.line, lineWidth: 1))
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 46)
+                        .background(Capsule().fill(Theme.raised))
                     }
                     .accessibilityLabel("Source: \(source.name). Tap to change")
                 } else {
-                    Text(source.name).font(.subheadline).foregroundColor(Theme.muted)
+                    Label(source.name, systemImage: "square.stack.3d.up.fill")
+                        .font(Theme.heading(.subheadline)).foregroundColor(Theme.text)
+                        .padding(.horizontal, 16).frame(minHeight: 46)
+                        .background(Capsule().fill(Theme.raised))
                 }
                 Spacer()
                 Button { showFilters = true } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "slider.horizontal.3")
                         Text(hasFilters ? "Filters · \(included.count + excluded.count)" : "Filters")
-                            .font(.subheadline.weight(.medium))
                     }
+                    .font(Theme.heading(.subheadline))
                     .foregroundColor(hasFilters ? .white : Theme.text)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 44)
-                    .background(hasFilters ? Theme.accent : Color.clear)
-                    .overlay(Rectangle().stroke(hasFilters ? Theme.accent : Theme.line, lineWidth: 1))
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 46)
+                    .background(Capsule().fill(hasFilters ? Theme.accent : Theme.raised))
                 }
                 .disabled(model.tagSections.isEmpty)
                 .opacity(model.tagSections.isEmpty ? 0.4 : 1)
                 .accessibilityLabel("Filters and genres")
             }
+            .padding(.horizontal, 20)
+
+            // One-tap genres. The full list with include/exclude is behind "Filters".
+            if !quickTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(quickTags.enumerated()), id: \.offset) { _, tag in
+                            let isOn = excluded.isEmpty && included.count == 1 && included.first?.id == tag.id
+                            Button {
+                                apply(included: isOn ? [] : [tag], excluded: [], runtime: runtime)
+                            } label: {
+                                Chip(text: tag.label, selected: isOn)
+                            }
+                            .accessibilityLabel("Genre \(tag.label)")
+                            .accessibilityAddTraits(isOn ? .isSelected : [])
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+
             if hasFilters {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
+                        Text("Showing").font(.footnote).foregroundColor(Theme.muted)
                         ForEach(Array(included.enumerated()), id: \.offset) { _, tag in
-                            Chip(text: tag.label, selected: true)
+                            Text(tag.label)
+                                .font(.footnote.weight(.semibold)).foregroundColor(Theme.text)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .background(Capsule().fill(Theme.accentSoft))
                         }
                         ForEach(Array(excluded.enumerated()), id: \.offset) { _, tag in
                             Text("Not \(tag.label)")
-                                .font(.footnote).foregroundColor(Theme.accent)
-                                .padding(.horizontal, 12).padding(.vertical, 7)
-                                .overlay(Rectangle().stroke(Theme.accent, lineWidth: 1))
+                                .font(.footnote.weight(.semibold)).foregroundColor(Theme.accent)
+                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                .overlay(Capsule().stroke(Theme.accent, lineWidth: 1))
                         }
-                        Button("Clear") {
-                            included = []
-                            excluded = []
-                            if query.isEmpty { clearResults() } else { Task { await search(store.runtime(for: source.id), reset: true) } }
+                        Button {
+                            apply(included: [], excluded: [], runtime: runtime)
+                        } label: {
+                            Label("Clear", systemImage: "xmark").font(.footnote.weight(.semibold))
+                                .padding(.horizontal, 10).frame(minHeight: 32)
                         }
-                        .font(.footnote)
-                        .padding(.horizontal, 8)
                     }
+                    .padding(.horizontal, 20)
                 }
             }
         }
-        .padding(.horizontal, 20)
     }
 
     private func switchSource(to id: String) {
@@ -274,29 +317,16 @@ struct DiscoverScreen: View {
 
     // MARK: Rows
 
-    private func link(_ manga: PartialManga, _ runtime: SourceRuntime, width: CGFloat = 130) -> some View {
+    private func link(_ manga: PartialManga, _ runtime: SourceRuntime, width: CGFloat = 140) -> some View {
         NavigationLink(destination: MangaScreen(runtime: runtime, mangaId: manga.mangaId, fallbackTitle: manga.title, fallbackCover: manga.image)) {
             MangaCell(runtime: runtime, manga: manga, width: width)
         }
         .buttonStyle(.plain)
     }
 
-    private func header(_ title: String, note: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 10) {
-                Rectangle().fill(Theme.accent).frame(width: 10, height: 10).accessibilityHidden(true)
-                Text(title).font(Theme.serif(.title2, weight: .semibold)).foregroundColor(Theme.text)
-            }
-            if let note = note {
-                Text(note).font(.footnote).foregroundColor(Theme.muted).padding(.leading, 20)
-            }
-        }
-        .padding(.horizontal, 20)
-    }
-
     private func row(_ items: [PartialManga], _ runtime: SourceRuntime) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: 14) {
+            LazyHStack(alignment: .top, spacing: 16) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, manga in link(manga, runtime) }
             }
             .padding(.horizontal, 20)
@@ -308,32 +338,10 @@ struct DiscoverScreen: View {
     private func spotlight(_ runtime: SourceRuntime) -> some View {
         if let first = model.suggestions.first, let manga = first.items.first {
             NavigationLink(destination: MangaScreen(runtime: runtime, mangaId: manga.mangaId, fallbackTitle: manga.title, fallbackCover: manga.image)) {
-                HStack(alignment: .top, spacing: 20) {
-                    RemoteImage(runtime: runtime, url: manga.image, maxPixel: 600)
-                        .frame(width: 150, height: 225)
-                        .clipped()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("SUGGESTED FOR YOU").font(.caption.weight(.semibold)).foregroundColor(Theme.accent)
-                        Text(manga.title).font(Theme.serif(.title, weight: .semibold)).foregroundColor(Theme.text)
-                            .multilineTextAlignment(.leading).lineLimit(3)
-                        Text("\(first.reason) · \(first.tag.label)").font(.callout).foregroundColor(Theme.muted)
-                            .multilineTextAlignment(.leading)
-                        if let subtitle = manga.subtitle, !subtitle.isEmpty {
-                            Text(subtitle).font(.footnote).foregroundColor(Theme.muted)
-                        }
-                        Spacer(minLength: 0)
-                        Text("View").font(.subheadline.weight(.semibold)).foregroundColor(.white)
-                            .padding(.horizontal, 22).frame(minHeight: 40).background(Theme.accent)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.surface)
-                .overlay(Rectangle().stroke(Theme.line, lineWidth: 1))
+                HeroBanner(runtime: runtime, cover: manga.image, eyebrow: "SUGGESTED FOR YOU", title: manga.title,
+                           detail: "\(first.reason) · \(first.tag.label)", button: "View title", symbol: "arrow.right")
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 20)
             .accessibilityLabel("Suggested for you: \(manga.title). \(first.reason)")
         }
     }
@@ -341,8 +349,17 @@ struct DiscoverScreen: View {
     @ViewBuilder
     private func suggestionRows(_ runtime: SourceRuntime) -> some View {
         ForEach(model.suggestions) { suggestion in
-            VStack(alignment: .leading, spacing: 10) {
-                header("More \(suggestion.tag.label)", note: suggestion.reason)
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "More \(suggestion.tag.label)", note: suggestion.reason) {
+                    Button {
+                        apply(included: [suggestion.tag], excluded: [], runtime: runtime)
+                    } label: {
+                        Label("See all", systemImage: "arrow.right").font(.footnote.weight(.semibold))
+                            .labelStyle(.titleAndIcon)
+                            .padding(.horizontal, 12).frame(minHeight: 36)
+                            .background(Capsule().fill(Theme.raised))
+                    }
+                }
                 row(suggestion.items, runtime)
             }
         }
@@ -371,8 +388,8 @@ struct DiscoverScreen: View {
             }
         } else {
             ForEach(Array(model.sections.enumerated()), id: \.offset) { _, section in
-                VStack(alignment: .leading, spacing: 10) {
-                    header(section.title)
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionHeader(title: section.title)
                     row(section.items ?? [], runtime)
                 }
             }
@@ -391,16 +408,18 @@ struct DiscoverScreen: View {
             if results.isEmpty {
                 Text("Nothing found. Try fewer filters.").foregroundColor(Theme.muted).padding(40)
             } else {
-                LazyVGrid(columns: columns, spacing: 20) {
+                SectionHeader(title: query.isEmpty ? "Results" : "Results for “\(query)”", note: "\(results.count) shown")
+                LazyVGrid(columns: columns, spacing: 22) {
                     ForEach(Array(results.enumerated()), id: \.offset) { _, manga in link(manga, runtime) }
                 }
                 .padding(.horizontal, 20)
                 if nextPage != nil {
                     HStack {
                         Spacer()
-                        Button(searching ? "Loading…" : "Load more") { Task { await search(runtime, reset: false) } }
-                            .buttonStyle(.bordered)
-                            .disabled(searching)
+                        Button { Task { await search(runtime, reset: false) } } label: {
+                            PrimaryLabel(text: searching ? "Loading…" : "Load more", symbol: "arrow.down")
+                        }
+                        .disabled(searching)
                         Spacer()
                     }
                     .padding(.vertical, 16)
@@ -458,21 +477,28 @@ struct FilterSheet: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 22) {
-                    Text(supportsExclusion
-                         ? "Tap once to include a tag, twice to exclude it, a third time to clear it."
-                         : "Tap a tag to include it. This source cannot exclude tags.")
-                        .font(.callout).foregroundColor(Theme.muted)
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "hand.tap.fill").foregroundColor(Theme.accent)
+                        Text(supportsExclusion
+                             ? "Tap once to include a tag, twice to exclude it, a third time to clear it."
+                             : "Tap a tag to include it. This source cannot exclude tags.")
+                            .font(.callout).foregroundColor(Theme.text)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.card().fill(Theme.accentSoft))
                     ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(section.label.capitalized)
-                                .font(Theme.serif(.title3, weight: .semibold)).foregroundColor(Theme.text)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(section.label.capitalized).font(Theme.heading(.title3)).foregroundColor(Theme.text)
                             LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                                 ForEach(Array((section.tags ?? []).enumerated()), id: \.offset) { _, tag in
                                     tagButton(tag)
                                 }
                             }
                         }
+                        .padding(18)
+                        .background(Theme.card().fill(Theme.surface))
                     }
                 }
                 .padding(20)
@@ -493,9 +519,9 @@ struct FilterSheet: View {
                     dismiss()
                 } label: {
                     Text(included.isEmpty && excluded.isEmpty ? "Show everything" : "Show results · \(included.count + excluded.count) selected")
-                        .font(.headline).foregroundColor(.white)
+                        .font(Theme.heading(.headline)).foregroundColor(.white)
                         .frame(maxWidth: .infinity, minHeight: 54)
-                        .background(Theme.accent)
+                        .background(Capsule().fill(Theme.accent))
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
@@ -519,20 +545,19 @@ struct FilterSheet: View {
             }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: isIncluded ? "checkmark" : isExcluded ? "minus" : "circle")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(isIncluded ? Theme.background : isExcluded ? Theme.accent : Theme.line)
+                Image(systemName: isIncluded ? "checkmark.circle.fill" : isExcluded ? "minus.circle.fill" : "circle")
+                    .foregroundColor(isIncluded ? .white : isExcluded ? Theme.accent : Theme.muted.opacity(0.6))
                 Text(tag.label)
                     .strikethrough(isExcluded)   // on Text itself: the View version needs iOS 16
-                    .font(.subheadline)
-                    .foregroundColor(isIncluded ? Theme.background : isExcluded ? Theme.accent : Theme.text)
+                    .font(.subheadline.weight(isIncluded ? .semibold : .regular))
+                    .foregroundColor(isIncluded ? .white : isExcluded ? Theme.accent : Theme.text)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .background(isIncluded ? Theme.text : Color.clear)
-            .overlay(Rectangle().stroke(isIncluded ? Theme.text : isExcluded ? Theme.accent : Theme.line, lineWidth: 1))
+            .padding(.horizontal, 14)
+            .frame(minHeight: 46)
+            .background(Theme.card(14).fill(isIncluded ? Theme.accent : Theme.raised))
+            .overlay(Theme.card(14).stroke(isExcluded ? Theme.accent : Color.clear, lineWidth: 1.5))
         }
         .accessibilityLabel("\(tag.label), \(isIncluded ? "included" : isExcluded ? "excluded" : "off")")
     }

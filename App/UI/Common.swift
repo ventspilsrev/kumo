@@ -47,11 +47,12 @@ struct ErrorBox: View {
                 .multilineTextAlignment(.center)
                 .textSelection(.enabled)
             if let retry = retry {
-                Button("Try again", action: retry).buttonStyle(.bordered)
+                Button(action: retry) { PrimaryLabel(text: "Try again", symbol: "arrow.clockwise") }
             }
         }
         .padding(24)
         .frame(maxWidth: 520)
+        .background(Theme.card().fill(Theme.surface))
     }
 }
 
@@ -62,13 +63,14 @@ struct MangaCell: View {
     var width: CGFloat = 120
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             RemoteImage(runtime: runtime, url: manga.image)
                 .frame(width: width, height: width * 1.5)
-                .clipped()
+                .clipShape(Theme.card(Theme.coverRadius))
             Text(manga.title)
-                .font(.footnote)
+                .font(.footnote.weight(.medium))
                 .lineLimit(2)
+                .multilineTextAlignment(.leading)
                 .foregroundColor(Theme.text)
             if let subtitle = manga.subtitle, !subtitle.isEmpty {
                 Text(subtitle).font(.caption2).lineLimit(1).foregroundColor(Theme.muted)

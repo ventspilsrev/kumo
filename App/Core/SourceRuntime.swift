@@ -1,6 +1,20 @@
 import Foundation
 import JavaScriptCore
 
+/// Some sites answer an https request with a redirect to plain http
+/// (fanfox.net does). iOS refuses plain http, and so do we: the redirect is
+/// followed on https instead.
+final class RedirectUpgrader: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        var next = request
+        if let url = request.url, url.scheme?.lowercased() == "http", let upgraded = SourceRuntime.secure(url) {
+            next.url = upgraded
+        }
+        completionHandler(next)
+    }
+}
+
 struct SourceError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
@@ -41,7 +55,7 @@ final class SourceRuntime {
         config.httpMaximumConnectionsPerHost = 4
         config.timeoutIntervalForResource = 120
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        self.session = URLSession(configuration: config)
+        self.session = URLSession(configuration: config, delegate: RedirectUpgrader(), delegateQueue: nil)
 
         if let data = try? Data(contentsOf: stateURL),
            let saved = try? JSONDecoder().decode([String: String].self, from: data) {
@@ -206,15 +220,28 @@ final class SourceRuntime {
         return URL(string: escaped)
     }
 
+    /// Returns the https form of an address, or nil if it is neither http nor https.
+    static func secure(_ url: URL) -> URL? {
+        switch url.scheme?.lowercased() {
+        case "https": return url
+        case "http":
+            guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+            parts.scheme = "https"
+            return parts.url
+        default: return nil
+        }
+    }
+
     private func fetch(_ req: JSValue, resolve: JSValue, reject: JSValue) {
         guard let urlString = req.forProperty("url")?.toString(),
-              let url = SourceRuntime.lenientURL(urlString) else {
+              let parsed = SourceRuntime.lenientURL(urlString) else {
             reject.call(withArguments: ["Invalid URL"])
             return
         }
-        // HTTPS only. Plain HTTP is refused, not upgraded.
-        guard url.scheme?.lowercased() == "https" else {
-            reject.call(withArguments: ["Blocked non-HTTPS request to \(url.host ?? urlString)"])
+        // HTTPS only. A plain http:// address is upgraded to https:// (never
+        // the other way round); anything else is refused.
+        guard let url = SourceRuntime.secure(parsed) else {
+            reject.call(withArguments: ["Blocked non-HTTPS request to \(urlString)"])
             return
         }
         var request = URLRequest(url: url)

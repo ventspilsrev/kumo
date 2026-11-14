@@ -75,6 +75,29 @@ final class LibraryStore: ObservableObject {
             .map(manga(from:))
     }
 
+    /// Where reading stopped in a title: chapter name, page and page count.
+    func lastRead(_ manga: StoredManga) -> (name: String, page: Int, pageCount: Int)? {
+        guard let chapterId = manga.lastChapterId,
+              let row = db.rows("SELECT name, chap_num, last_page, page_count FROM chapter WHERE source_id = ? AND manga_id = ? AND chapter_id = ?",
+                                [manga.sourceId, manga.mangaId, chapterId]).first else { return nil }
+        var name = row["name"] as? String ?? ""
+        if name.isEmpty, let number = row["chap_num"] as? Double {
+            name = "Chapter \(number.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(number)) : String(number))"
+        }
+        return (name, Int(row["last_page"] as? Int64 ?? 0), Int(row["page_count"] as? Int64 ?? 0))
+    }
+
+    /// Numbers for the tiles on the Library screen.
+    func stats() -> (titles: Int, chaptersRead: Int, unread: Int) {
+        let titles = db.rows("SELECT COUNT(*) AS n FROM manga WHERE in_library = 1").first?["n"] as? Int64 ?? 0
+        let read = db.rows("SELECT COUNT(*) AS n FROM chapter WHERE read = 1").first?["n"] as? Int64 ?? 0
+        let unread = db.rows("""
+            SELECT COUNT(*) AS n FROM chapter c JOIN manga m ON m.source_id = c.source_id AND m.manga_id = c.manga_id
+            WHERE m.in_library = 1 AND c.read = 0
+            """).first?["n"] as? Int64 ?? 0
+        return (Int(titles), Int(read), Int(unread))
+    }
+
     /// Everything in the library or in the history: the basis for suggestions.
     func tasteTitles() -> [StoredManga] {
         db.rows("SELECT \(LibraryStore.mangaColumns) FROM manga m WHERE in_library = 1 OR last_read_at IS NOT NULL")

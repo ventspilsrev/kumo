@@ -64,6 +64,8 @@ const host = {
   fetch(req, resolve, reject) {
     (async () => {
       const u = new URL(req.url);
+      // Same rule as the app: http is upgraded to https, never used as is.
+      if (u.protocol === 'http:') { u.protocol = 'https:'; req = { ...req, url: u.toString() }; }
       if (u.protocol !== 'https:') throw new Error(`Blocked non-HTTPS request to ${u.host}`);
       stats.requests++;
       stats.hosts.add(u.host);

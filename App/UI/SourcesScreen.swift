@@ -18,7 +18,7 @@ struct SourcesScreen: View {
                 ForEach(store.installed) { source in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text(source.name).font(Theme.serif(.title3, weight: .semibold))
+                            Text(source.name).font(Theme.heading(.headline))
                             ratingBadge(source.contentRating)
                         }
                         Text("Version \(source.version)").font(.caption).foregroundColor(.secondary)
