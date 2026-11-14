@@ -13,8 +13,8 @@ Last updated: 2026-11-14 (session 1, after step 2)
 
 ## Next step
 
-1. Step 1b: feature research (brief 7a) and design directions (7b). Show Rev the shortlist, ask which extras,
-   let Rev pick a design direction and an app name. Do not build full UI before Rev answers.
+1. Step 1b: research done and shown. **Waiting for Rev**: which extras, which design direction (A/B/C), light
+   theme or not, favourite genres. Then write the agreed scope here. Do not build full UI before that.
 2. Step 3: minimal app (add repo, install MangaKatana, search, read a chapter), XcodeGen project, GitHub Actions
    workflow, BUILDING.md. Needs the app name first because the bundle identifier must never change afterwards.
    Rev needs a GitHub account at that point; `gh` is not installed on the PC yet.
@@ -50,6 +50,36 @@ Command: `node harness/run.js <repoURL> <SourceId> [search words]`
 - 0.7 repo (MangaDex): correctly rejected as incompatible.
 - Limits of this proof: Node runs V8 with JIT. JavaScriptCore without JIT on an A8X will be much slower,
   ComixTo's key extraction especially. Speed on the device is untested.
+
+## Feature scope and design (PROPOSED 2026-11-14, waiting for Rev's choices)
+
+Research basis: a few web searches (Mihon docs, Aidoku release notes, Kavita wiki, Komikku README, MangaDex API
+docs) plus the assistant's own knowledge of these apps. Not an exhaustive survey.
+
+Proposed must-haves beyond the brief's Stage 1 list:
+- Reader: fit modes (fit width / height / original), double-tap zoom, keep screen on, reader background colour
+  (black/grey/white), brightness dimmer, per-manga reading mode, "next chapter" transition page, long-press page
+  menu (save/share/reload), automatic splitting of very tall pages (required by the 8192 px limit anyway).
+- Library: unread badge, filter chips (unread / started / completed / source), pull to refresh for updates,
+  multi-select, duplicate warning when the same title is added from two sources, pinned sources.
+- Browse: saved searches / filter presets, tag include/exclude chips always visible, global search across sources.
+- Privacy: incognito mode (no history), NSFW badge + optional hide + optional cover blur.
+- Health: per-source status dot (ok / verification needed / failing) and storage screen.
+
+Extras offered to Rev (not built unless chosen):
+ 1 double-page spread in landscape (with offset toggle)   2 split wide pages
+ 3 crop borders   4 grayscale / invert / sepia filters   5 auto-scroll for webtoons
+ 6 customisable tap zones   7 AniList tracking   8 MangaUpdates/AniList "similar titles" in suggestions
+ 9 migrate a title between sources   10 app lock (Touch ID)   11 reading stats and quiet streak
+ 12 random pick from library   13 volume-button page turn (hard, may not work)   14 chapter downloads (Stage 2)
+
+Not possible / not reliable under TrollStore on iOS 15: push notifications, iCloud sync, dependable background
+update checks (updates are checked when the app is opened or on pull to refresh).
+
+Design directions shown to Rev as mockups: A "Sumi" (warm black, paper white, one vermilion accent, serif titles),
+B "Console" (monospace, square corners, phosphor green), C "Mist" (slate blue, rounded, soft blue accent).
+Assistant's recommendation: C as default with B as an optional theme. Layout for all: sidebar in landscape,
+tab bar in portrait/Slide Over, filter chips always visible above the grid.
 
 ## Repositories (verified by fetching on 2026-11-14)
 
